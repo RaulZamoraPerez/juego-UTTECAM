@@ -15,13 +15,16 @@ class Level2Scene extends Phaser.Scene {
         super('Level2Scene');
         this.gameState = {
             score: 0,
-            health: 200,
-            maxHealth: 200,
+            health: 100,        // ✅ CAMBIAR A 100
+            maxHealth: 100,     // ✅ CAMBIAR A 100
             coinsCollected: 0,
             totalCoins: 0,
             enemiesKilled: 0,
             level: 2
         };
+        // ✅ IGUALAR LA VIDA DEL COMPAÑERO A 100
+        this.companionMaxHealth = 100;  // ✅ CAMBIAR A 100
+        this.companionHealth = 100;     // ✅ CAMBIAR A 100
         this.isGamePaused = false;
     }
 
@@ -81,9 +84,15 @@ class Level2Scene extends Phaser.Scene {
 
         // Crear entidades
         this.playerManager.createPlayer();
+        // ✅ FALTA RESETEAR VIDA Y SINCRONIZAR
+        this.player.health = this.gameState.maxHealth; // Vida completa al iniciar nivel 2
+        this.gameState.health = this.player.health;   // Sincronizar
+        this.player.isInvulnerable = false;          // Quitar invulnerabilidad
+        this.player.clearTint();                     // Quitar efectos visuales
+    
         this.playerManager.createCompanion();
-        this.companionMaxHealth = 200;
-        this.companionHealth = 200;
+        this.companionMaxHealth = 100;  // ✅ CAMBIAR A 100 PARA CONSISTENCIA
+        this.companionHealth = 100;     // ✅ CAMBIAR A 100 PARA CONSISTENCIA
         // Crear Motocle como tercer personaje (player, amigo, motocle)
         try {
             this.createMotocle();
@@ -486,53 +495,102 @@ class Level2Scene extends Phaser.Scene {
         console.log("✅ Controles Nivel 2 configurados");
     }
 
-    update() {
-        if (this.isGamePaused) return;
+  // ...existing code...
+update() {
+    if (this.isGamePaused) return;
 
-        // Control de cámara para personajes muertos
-        if (this.player && !this.player.active && this.companion && this.companion.active) {
-            if (this.cameras.main._follow !== this.companion) {
-                this.cameras.main.startFollow(this.companion);
-            }
+    // ✅ VERIFICAR QUE LOS OBJETOS EXISTEN ANTES DE USARLOS
+    
+    // Control de cámara para personajes muertos
+    if (this.player && this.player.active && this.cameras.main) {
+        // El ninja está vivo, seguirlo si no se está siguiendo ya
+        if (this.cameras.main._follow !== this.player) {
+            this.cameras.main.startFollow(this.player);
         }
-        
-        if ((!this.player || !this.player.active) && (!this.companion || !this.companion.active)) {
-            this.cameras.main.stopFollow();
+    } else if (this.companion && this.companion.active && this.cameras.main) {
+        // Solo el compañero está vivo, seguirlo
+        if (this.cameras.main._follow !== this.companion) {
+            this.cameras.main.startFollow(this.companion);
         }
+    } else if (this.cameras.main) {
+        // Ambos muertos, detener seguimiento
+        this.cameras.main.stopFollow();
+    }
 
-        // Controles de jugadores
-        if (this.player && this.player.active) {
+    // Controles de jugadores (solo si existen y están activos)
+    if (this.player && this.player.active && this.playerManager) {
+        try {
             this.playerManager.handleMovement(this.keys);
+        } catch(e) {
+            console.log("⚠️ Error en movimiento del jugador:", e);
         }
-        
-        if (this.companion && this.companion.active) {
+    }
+    
+    if (this.companion && this.companion.active && this.playerManager) {
+        try {
             this.playerManager.handleCompanionMovement && this.playerManager.handleCompanionMovement();
+        } catch(e) {
+            console.log("⚠️ Error en movimiento del compañero:", e);
         }
+    }
 
-        // Actualizar Motocle (IA local) si existe
-        if (this.motocle && this.motocle.active) {
-            try { this.updateMotocleFollow(); } catch (e) { /* swallow */ }
+    // Actualizar Motocle (IA local) si existe
+    if (this.motocle && this.motocle.active && this.motocle.body) {
+        try { 
+            this.updateMotocleFollow(); 
+        } catch (e) { 
+            console.log("⚠️ Error actualizando Motocle:", e);
         }
-        
-        this.playerManager.handleAnimations();
-        this.enemyManager.updateEnemies();
-        this.autoHeal();
-        
-        // Ataques
-        if (this.player && this.player.active && this.keys.I && Phaser.Input.Keyboard.JustDown(this.keys.I)) {
+    }
+    
+    // Actualizar managers (solo si existen)
+    if (this.playerManager) {
+        try {
+            this.playerManager.handleAnimations();
+        } catch(e) {
+            console.log("⚠️ Error en animaciones:", e);
+        }
+    }
+    
+    if (this.enemyManager) {
+        try {
+            this.enemyManager.updateEnemies();
+        } catch(e) {
+            console.log("⚠️ Error actualizando enemigos:", e);
+        }
+    }
+    
+    this.autoHeal();
+    
+    // Ataques (solo si los objetos existen)
+    if (this.player && this.player.active && this.keys.I && Phaser.Input.Keyboard.JustDown(this.keys.I) && this.playerManager) {
+        try {
             this.playerManager.performAttack();
+        } catch(e) {
+            console.log("⚠️ Error en ataque del jugador:", e);
         }
-        
-        if (this.companion && this.companion.active && this.keys.ENTER && Phaser.Input.Keyboard.JustDown(this.keys.ENTER)) {
+    }
+    
+    if (this.companion && this.companion.active && this.keys.ENTER && Phaser.Input.Keyboard.JustDown(this.keys.ENTER) && this.playerManager) {
+        try {
             this.playerManager.performCompanionAttack();
+        } catch(e) {
+            console.log("⚠️ Error en ataque del compañero:", e);
         }
-        
-        // ESC para menú
-        if (this.keys.ESC && Phaser.Input.Keyboard.JustDown(this.keys.ESC)) {
+    }
+    
+    // ESC para menú
+    if (this.keys.ESC && Phaser.Input.Keyboard.JustDown(this.keys.ESC)) {
+        try {
             this.scene.start('MenuScene');
+        } catch(e) {
+            console.log("⚠️ Error cambiando a MenuScene:", e);
+            this.scene.start('GameScene'); // Fallback
         }
-        
-        // Zoom
+    }
+    
+    // Zoom (solo si la cámara existe)
+    if (this.cameras && this.cameras.main) {
         let cam = this.cameras.main;
         if (this.keys.Z && Phaser.Input.Keyboard.JustDown(this.keys.Z)) {
             cam.setZoom(Math.min(2.5, cam.zoom + 0.1));
@@ -541,35 +599,72 @@ class Level2Scene extends Phaser.Scene {
             cam.setZoom(Math.max(0.5, cam.zoom - 0.1));
         }
     }
+}
+// ...existing code...
 
     // Métodos idénticos al GameScene original
     hitCompanion(companion, enemy) {
-        if (!companion.isInvulnerable) {
-            console.log(`💔 COMPAÑERO HERIDO por ${enemy.enemyType}!`);
-            if (companion.health === undefined) companion.health = 200;
-            companion.health -= enemy.damage || 10;
-            this.companionHealth = companion.health;
+        // ✅ VERIFICAR CORRECTAMENTE LA INVULNERABILIDAD Y VIDA
+        if (companion.isInvulnerable) {
+            console.log("🛡️ Compañero invulnerable - sin daño");
+            return;
+        }
+        
+        if (companion.health <= 0) {
+            console.log("💀 Compañero ya está muerto");
+            return;
+        }
+        
+        console.log(`💔 COMPAÑERO HERIDO por ${enemy.enemyType}!`);
+        
+        // ✅ ASEGURAR QUE TIENE VIDA INICIAL
+        if (companion.health === undefined) companion.health = 100;
+        
+        // ✅ APLICAR DAÑO
+        const damage = enemy.damage || 10;
+        companion.health -= damage;
+        this.companionHealth = companion.health;
+        
+        console.log(`🩸 Compañero: ${companion.health + damage} → ${companion.health} HP`);
+        
+        this.uiManager.updateCompanionHealth && this.uiManager.updateCompanionHealth();
+        
+        // ✅ EFECTOS VISUALES
+        companion.isInvulnerable = true;
+        companion.setTint(0xff0000);
+        const pushForce = companion.x < enemy.x ? -200 : 200;
+        companion.setVelocityX(pushForce);
+        companion.setVelocityY(-100);
+        this.cameras.main.shake(200, 0.01);
+        
+        // ✅ QUITAR INVULNERABILIDAD DESPUÉS DE 1 SEGUNDO
+        this.time.delayedCall(1000, () => {
+            if (companion && companion.active) {
+                companion.clearTint();
+                companion.isInvulnerable = false;
+                console.log("🛡️ Compañero ya no es invulnerable");
+            }
+        });
+        
+        // ✅ VERIFICAR MUERTE
+        if (companion.health <= 0) {
+            companion.health = 0;
+            companion.setActive(false).setVisible(false);
             this.uiManager.updateCompanionHealth && this.uiManager.updateCompanionHealth();
-            companion.isInvulnerable = true;
-            companion.setTint(0xff0000);
-            const pushForce = companion.x < enemy.x ? -200 : 200;
-            companion.setVelocityX(pushForce);
-            companion.setVelocityY(-100);
-            this.cameras.main.shake(200, 0.01);
-            this.time.delayedCall(2000, () => {
-                if (companion && companion.active) {
-                    companion.clearTint();
-                    companion.isInvulnerable = false;
-                }
-            });
+            console.log('💀 Compañero eliminado');
             
-            if (companion.health <= 0) {
-                companion.setActive(false).setVisible(false);
-                this.uiManager.updateCompanionHealth && this.uiManager.updateCompanionHealth();
-                console.log('💀 Compañero eliminado');
-                if ((!this.player || !this.player.active) && (!this.companion || !this.companion.active)) {
+            // ✅ CORREGIR: Verificar si AMBOS jugadores principales están muertos
+            const ninjaIsDead = !this.player || !this.player.active || this.player.health <= 0;
+            const companionIsDead = !this.companion || !this.companion.active || this.companion.health <= 0;
+            
+            console.log(`🔍 Estado muerte - Ninja: ${ninjaIsDead}, Compañero: ${companionIsDead}`);
+            
+            // Game over si los DOS jugadores principales están muertos (Motocle es opcional)
+            if (ninjaIsDead && companionIsDead) {
+                console.log("💀 AMBOS JUGADORES MUERTOS - Activando Game Over");
+                this.time.delayedCall(1000, () => {
                     this.gameOver();
-                }
+                });
             }
         }
     }
@@ -578,42 +673,64 @@ class Level2Scene extends Phaser.Scene {
         if (!this.lastHeal) this.lastHeal = 0;
         
         const currentTime = this.time.now;
+        
+        // ✅ VERIFICAR QUE EL NINJA ESTÉ VIVO Y ACTIVO ANTES DE CURAR
         if (currentTime - this.lastHeal > 2000 && 
+            this.player && 
+            this.player.active && 
+            this.player.health > 0 && 
             this.player.health < this.gameState.maxHealth) {
             
-            this.player.health += 1;
+            this.player.health += 2;
             this.gameState.health = this.player.health;
             this.uiManager.updateHealth();
             this.lastHeal = currentTime;
+            
+            console.log(`💚 Ninja curado Nivel 2: ${this.player.health}/${this.gameState.maxHealth} HP`);
         }
     }
 
-    setupPhysics() {
-        this.physics.add.collider(this.player, this.platforms);
-        this.physics.add.collider(this.companion, this.platforms);
-        // Asegurar que Motocle pisa las plataformas si existe
-        if (this.motocle) {
-            try { this.physics.add.collider(this.motocle, this.platforms); } catch(e) {}
-        }
-        this.physics.add.collider(this.coins, this.platforms);
-        this.physics.add.collider(this.enemies, this.platforms);
-        this.physics.add.collider(this.items, this.platforms);
+   // ...existing code...
+setupPhysics() {
+    // ✅ VERIFICAR QUE TODOS LOS OBJETOS EXISTEN ANTES DE CONFIGURAR COLISIONES
+    if (!this.platforms || !this.coins || !this.enemies || !this.items) {
+        console.error("❌ Objetos de física no inicializados correctamente");
+        return;
+    }
 
+    // Colisiones básicas (solo si los objetos existen)
+    if (this.player && this.player.active) {
+        this.physics.add.collider(this.player, this.platforms);
         this.physics.add.overlap(this.player, this.coins, this.collectCoin, null, this);
-        this.physics.add.overlap(this.companion, this.coins, this.collectCoin, null, this);
-        // Permitir que Motocle también recoja monedas/colisiones si es necesario
-        if (this.motocle) {
-            try { this.physics.add.overlap(this.motocle, this.coins, this.collectCoin, null, this); } catch(e) {}
-        }
         this.physics.add.overlap(this.player, this.items, this.collectItem, null, this);
         this.physics.add.overlap(this.player, this.enemies, this.enemyManager.hitEnemy.bind(this.enemyManager), null, this);
-        this.physics.add.overlap(this.companion, this.enemies, this.hitCompanion, null, this);
-        if (this.motocle) {
-            try { this.physics.add.overlap(this.motocle, this.enemies, this.hitMotocle, null, this); } catch(e) {}
-        }
-        
-        console.log("✅ Físicas Nivel 2 configuradas");
     }
+    
+    if (this.companion && this.companion.active) {
+        this.physics.add.collider(this.companion, this.platforms);
+        this.physics.add.overlap(this.companion, this.coins, this.collectCoin, null, this);
+        this.physics.add.overlap(this.companion, this.enemies, this.hitCompanion, null, this);
+    }
+    
+    // Colisiones de Motocle (solo si existe y está activo)
+    if (this.motocle && this.motocle.active && this.motocle.body) {
+        try {
+            this.physics.add.collider(this.motocle, this.platforms);
+            this.physics.add.overlap(this.motocle, this.coins, this.collectCoin, null, this);
+            this.physics.add.overlap(this.motocle, this.enemies, this.hitMotocle, null, this);
+        } catch(e) {
+            console.log("⚠️ Error configurando física de Motocle:", e);
+        }
+    }
+    
+    // Colisiones de objetos con plataformas
+    this.physics.add.collider(this.coins, this.platforms);
+    this.physics.add.collider(this.enemies, this.platforms);
+    this.physics.add.collider(this.items, this.platforms);
+    
+    console.log("✅ Físicas Nivel 2 configuradas correctamente");
+}
+// ...existing code...
 
     setupCamera() {
         const worldWidth = this.levelWorldWidth || 4000;
@@ -732,13 +849,28 @@ class Level2Scene extends Phaser.Scene {
             const pushForce = motocle.x < enemy.x ? -200 : 200;
             motocle.setVelocityX(pushForce);
             motocle.setVelocityY(-100);
-            this.time.delayedCall(1200, () => { if (motocle && motocle.active) { motocle.clearTint(); motocle.isInvulnerable = false; } });
+            this.time.delayedCall(1200, () => { 
+                if (motocle && motocle.active) { 
+                    motocle.clearTint(); 
+                    motocle.isInvulnerable = false; 
+                } 
+            });
+            
             if (motocle.health <= 0) {
                 motocle.setActive(false).setVisible(false);
                 console.log('💀 Motocle eliminado');
-                // Si los demás también están muertos, game over
-                if ((!this.player || !this.player.active) && (!this.companion || !this.companion.active)) {
-                    this.gameOver();
+                
+                // ✅ CORREGIR: Solo game over si los jugadores PRINCIPALES están muertos
+                const ninjaIsDead = !this.player || !this.player.active || this.player.health <= 0;
+                const companionIsDead = !this.companion || !this.companion.active || this.companion.health <= 0;
+                
+                console.log(`🔍 Estado muerte - Ninja: ${ninjaIsDead}, Compañero: ${companionIsDead}`);
+                
+                if (ninjaIsDead && companionIsDead) {
+                    console.log("💀 JUGADORES PRINCIPALES MUERTOS - Activando Game Over");
+                    this.time.delayedCall(1000, () => {
+                        this.gameOver();
+                    });
                 }
             }
         }
@@ -788,7 +920,7 @@ class Level2Scene extends Phaser.Scene {
     }
 
     gameOver() {
-        console.log("💀 GAME OVER - Nivel 2");
+        console.log("💀 GAME OVER - Nivel 2 EJECUTÁNDOSE");
         
         this.physics.pause();
         
@@ -800,6 +932,7 @@ class Level2Scene extends Phaser.Scene {
             level: 2
         };
         
+        console.log("🎮 Cambiando a GameOverScene con datos:", gameData);
         this.scene.start('GameOverScene', gameData);
     }
 }

@@ -63,10 +63,7 @@ class GameOverScene extends Phaser.Scene {
 
         retryButton.on('pointerdown', () => {
             console.log("🔄 Reiniciando juego...");
-            const gameScene = this.scene.manager.getScene('GameScene');
-            if (gameScene) {
-                this.scene.manager.remove('GameScene');
-            }
+            // ✅ SOLUCIÓN: Solo usar start, no restart
             this.scene.start('GameScene');
         });
 
@@ -90,14 +87,11 @@ class GameOverScene extends Phaser.Scene {
 
         menuButton.on('pointerdown', () => {
             console.log("📋 Volviendo al menú...");
-            // Si no tienes MenuScene, ir a GameScene
-            if (this.scene.manager.scenes.find(scene => scene.scene.key === 'MenuScene')) {
+            // ✅ SOLUCIÓN: Verificar si MenuScene existe antes de usarla
+            try {
                 this.scene.start('MenuScene');
-            } else {
-                const gameScene = this.scene.manager.getScene('GameScene');
-                if (gameScene) {
-                    this.scene.manager.remove('GameScene');
-                }
+            } catch (e) {
+                console.log("MenuScene no existe, iniciando GameScene");
                 this.scene.start('GameScene');
             }
         });
@@ -110,20 +104,14 @@ class GameOverScene extends Phaser.Scene {
             menuButton.setStyle({ backgroundColor: '#333333' });
         });
 
-        // ✅ CONTROLES DE TECLADO
+        // ✅ CONTROLES DE TECLADO CORREGIDOS
         this.input.keyboard.on('keydown-SPACE', () => {
-            const gameScene = this.scene.manager.getScene('GameScene');
-            if (gameScene) {
-                this.scene.manager.remove('GameScene');
-            }
+            console.log("🔄 SPACE presionado - reiniciando...");
             this.scene.start('GameScene');
         });
 
         this.input.keyboard.on('keydown-ESC', () => {
-            const gameScene = this.scene.manager.getScene('GameScene');
-            if (gameScene) {
-                this.scene.manager.remove('GameScene');
-            }
+            console.log("🔄 ESC presionado - reiniciando...");
             this.scene.start('GameScene');
         });
 

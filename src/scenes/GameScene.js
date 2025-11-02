@@ -253,13 +253,16 @@ showMotocleSequence() {
         super('GameScene');
         this.gameState = {
             score: 0,
-            health: 400,      // VIDA INICIAL MÁS ALTA
-            maxHealth: 400,   // VIDA MÁXIMA MÁS ALTA
+            health: 100,        // CAMBIAR A 100
+            maxHealth: 100,     // CAMBIAR A 100
             coinsCollected: 0,
             totalCoins: 0,
             enemiesKilled: 0,
             level: 1
         };
+        // IGUALAR LA VIDA DEL COMPAÑERO A 100
+        this.companionMaxHealth = 100;  // CAMBIAR A 100
+        this.companionHealth = 100;     // CAMBIAR A 100
         this.isGamePaused = false;
     }
 
@@ -436,11 +439,8 @@ showMotocleSequence() {
 
         // Crear entidades
         this.playerManager.createPlayer();
-this.player.attackDamage = 40; // Daño aumentado (antes era 20 o menos)
-        this.playerManager.createCompanion();
-        // Vida del compañero (solo en la UI)
-        this.companionMaxHealth = 200;
-        this.companionHealth = 200;
+this.player.attackDamage = 40;
+this.playerManager.createCompanion();
         this.createCoins();
         this.enemyManager.createEnemies();
         this.createItems();
@@ -633,56 +633,82 @@ this.player.attackDamage = 40; // Daño aumentado (antes era 20 o menos)
 
     // Permite que el compañero reciba daño de enemigos
     hitCompanion(companion, enemy) {
-        if (!companion.isInvulnerable) {
-            console.log(`💔 COMPAÑERO HERIDO por ${enemy.enemyType}!`);
-            if (companion.health === undefined) companion.health = 200;
-            companion.health -= enemy.damage || 10;
-            this.companionHealth = companion.health;
-            this.uiManager.updateCompanionHealth && this.uiManager.updateCompanionHealth();
-            companion.isInvulnerable = true;
-            companion.setTint(0xff0000);
-            const pushForce = companion.x < enemy.x ? -200 : 200;
-            companion.setVelocityX(pushForce);
-            companion.setVelocityY(-100);
-            this.cameras.main.shake(200, 0.01);
-            this.time.delayedCall(2000, () => {
-                if (companion && companion.active) {
-                    companion.clearTint();
-                    companion.isInvulnerable = false;
-                }
-            });
-            // Si muere, desaparecer
-            if (companion.health <= 0) {
-                companion.setActive(false).setVisible(false);
-                this.uiManager.updateCompanionHealth && this.uiManager.updateCompanionHealth();
-                console.log('💀 Compañero eliminado');
-                // Si ambos están muertos, game over
-                if ((!this.player || !this.player.active) && (!this.companion || !this.companion.active)) {
-                    this.gameOver();
-                }
-            }
-        } else {
+        // ✅ VERIFICAR CORRECTAMENTE LA INVULNERABILIDAD Y VIDA
+        if (companion.isInvulnerable) {
             console.log("🛡️ Compañero invulnerable - sin daño");
+            return;
         }
-        // Asegurar que la UI siempre esté fija y visible
-        if (this.uiManager.uiContainer) {
-            this.uiManager.uiContainer.setScrollFactor(0);
-            this.uiManager.uiContainer.setDepth(1000);
-        }
-    }
-
-    autoHeal() {
-        if (!this.lastHeal) this.lastHeal = 0;
         
-        const currentTime = this.time.now;
-        if (currentTime - this.lastHeal > 2000 && 
-            this.player.health < this.gameState.maxHealth) {
-            this.player.health += 2; // Recupera 2 en vez de 1
-            this.gameState.health = this.player.health;
-            this.uiManager.updateHealth();
-            this.lastHeal = currentTime;
+        if (companion.health <= 0) {
+            console.log("💀 Compañero ya está muerto");
+            return;
+        }
+        
+        console.log(`💔 COMPAÑERO HERIDO por ${enemy.enemyType}!`);
+        
+        // ✅ ASEGURAR QUE TIENE VIDA INICIAL
+        if (companion.health === undefined) companion.health = 100;
+        
+        // ✅ APLICAR DAÑO
+        const damage = enemy.damage || 10;
+        companion.health -= damage;
+        this.companionHealth = companion.health;
+        
+        console.log(`🩸 Compañero: ${companion.health + damage} → ${companion.health} HP`);
+        
+        this.uiManager.updateCompanionHealth && this.uiManager.updateCompanionHealth();
+        
+        // ✅ EFECTOS VISUALES
+        companion.isInvulnerable = true;
+        companion.setTint(0xff0000);
+        const pushForce = companion.x < enemy.x ? -200 : 200;
+        companion.setVelocityX(pushForce);
+        companion.setVelocityY(-100);
+        this.cameras.main.shake(200, 0.01);
+        
+        // ✅ QUITAR INVULNERABILIDAD DESPUÉS DE 1 SEGUNDO (NO 1.5)
+        this.time.delayedCall(1000, () => {
+            if (companion && companion.active) {
+                companion.clearTint();
+                companion.isInvulnerable = false;
+                console.log("🛡️ Compañero ya no es invulnerable");
+            }
+        });
+        
+        // ✅ VERIFICAR MUERTE
+        if (companion.health <= 0) {
+            companion.health = 0;
+            companion.setActive(false).setVisible(false);
+            this.uiManager.updateCompanionHealth && this.uiManager.updateCompanionHealth();
+            console.log('💀 Compañero eliminado');
+            
+            // Solo game over si TODOS están muertos
+            if ((!this.player || !this.player.active) && 
+                (!this.companion || !this.companion.active)) {
+                this.gameOver();
+            }
         }
     }
+autoHeal() {
+    if (!this.lastHeal) this.lastHeal = 0;
+    
+    const currentTime = this.time.now;
+    
+    // ✅ VERIFICAR QUE EL NINJA ESTÉ VIVO Y ACTIVO ANTES DE CURAR
+    if (currentTime - this.lastHeal > 2000 && 
+        this.player && 
+        this.player.active && 
+        this.player.health > 0 && 
+        this.player.health < this.gameState.maxHealth) {
+        
+        this.player.health += 2;
+        this.gameState.health = this.player.health;
+        this.uiManager.updateHealth();
+        this.lastHeal = currentTime;
+        
+        console.log(`💚 Ninja curado: ${this.player.health}/${this.gameState.maxHealth} HP`);
+    }
+}
 
     // Métodos simples que permanecen en GameScene
     // Si el fondo debe repetirse en lugar de escalarse:
@@ -865,123 +891,141 @@ this.player.attackDamage = 40; // Daño aumentado (antes era 20 o menos)
     }
 
     // Mostrar overlay con el libro y pausar la jugabilidad
-    openBook(item, opener = null) {
-        if (this._bookOpen) return; // evitar reentradas
-        this._bookOpen = true;
-        this._bookOpener = opener || this.player;
-        // Pausar la lógica del juego: evita que update procese movimiento/enemigos
-        this.isGamePaused = true;
+openBook(item, opener = null) {
+    if (this._bookOpen) return; // ❌ FALTABA PARÉNTESIS DE APERTURA
+    this._bookOpen = true;
+    this._bookOpener = opener || this.player;
+    // Pausar la lógica del juego: evita que update procese movimiento/enemigos
+    this.isGamePaused = true;
 
-        // Crear overlay en pantalla fija (UI camera)
-        const { width, height } = this.sys.game.config;
-        this.bookOverlay = this.add.container(0, 0).setDepth(5000);
+    // Crear overlay en pantalla fija (UI camera)
+    const { width, height } = this.sys.game.config;
+    this.bookOverlay = this.add.container(0, 0).setDepth(5000);
 
-        // Marcar el item como deshabilitado mientras el modal está abierto para evitar re-firing de overlap
-        try {
-            item._disabled = true;
-            if (item.body) item.body.enable = false;
-        } catch(e) {}
+    // Marcar el item como deshabilitado mientras el modal está abierto para evitar re-firing de overlap
+    try {
+        item._disabled = true;
+        if (item.body) item.body.enable = false;
+    } catch(e) {}
 
-        // Ocultar cualquier prompt del item y limpiar la referencia nearby
-        try { this.hideItemPrompt(); } catch(e) {}
-        this._nearbyItem = null;
+    // Ocultar cualquier prompt del item y limpiar la referencia nearby
+    try { this.hideItemPrompt(); } catch(e) {}
+    this._nearbyItem = null;
 
     const panelW = Math.min(720, width - 80);
     const panelH = Math.min(420, height - 120);
     const panelX = (width - panelW) / 2;
     const panelY = (height - panelH) / 2;
 
-    // Backdrop reducido sólo detrás del panel (no pantalla completa)
-    const panelBackdrop = this.add.rectangle(panelX, panelY, panelW, panelH, 0x000000, 0.55).setOrigin(0, 0);
-    panelBackdrop.setScrollFactor(0);
-    panelBackdrop.setDepth(4999);
+    // Sombra detrás del libro
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x222222, 0.25);
+    shadow.fillRoundedRect(panelX + 18, panelY + 28, panelW, panelH, 28);
+    shadow.setScrollFactor(0);
+    shadow.setDepth(4998);
 
-    const panel = this.add.graphics();
-    panel.fillStyle(0xffffff, 1);
-    panel.fillRoundedRect(panelX, panelY, panelW, panelH, 12);
-    panel.lineStyle(4, 0x8B5A2B, 1);
-    panel.strokeRoundedRect(panelX, panelY, panelW, panelH, 12);
-    panel.setScrollFactor(0);
-    panel.setDepth(5000);
+    // Animación de apertura del libro usando sprite animado
+    let bookAnimSprite = null;
+    if (this.anims.exists('book_anim')) {
+        bookAnimSprite = this.add.sprite(panelX + panelW / 2, panelY + panelH / 2, 'book_anim_1')
+            .setOrigin(0.5)
+            .setScrollFactor(0)
+            .setDepth(5001)
+            .setScale(panelW / 400, panelH / 300);
+        bookAnimSprite.play('book_anim');
+        this.bookOverlay.add([shadow, bookAnimSprite]);
+    }
 
-        // Mostrar el texto en la parte superior del panel (se agregará dentro de un contenedor con máscara más abajo)
+    // Mostrar contenido después de la animación (~1.3s)
+    this.time.delayedCall(1300, () => {
+        // Oculta el sprite animado
+        if (bookAnimSprite) bookAnimSprite.setVisible(false);
 
-    // Reservar menos espacio para la imagen para dar más lugar al texto
-    const reservedImageH = Math.min(80, Math.floor(panelH * 0.18)); // altura reservada para la imagen (más pequeña)
-    const textAreaH = panelH - reservedImageH - 48; // espacio para texto (márgenes)
+        // Fondo del libro con doble página y borde
+        const bookBg = this.add.graphics();
+        bookBg.fillStyle(0xf5e6c5, 1);
+        bookBg.fillRoundedRect(panelX, panelY, panelW, panelH, 28);
+        bookBg.lineStyle(2, 0x8B5A2B, 0.5);
+        bookBg.beginPath();
+        bookBg.moveTo(panelX + panelW / 2, panelY + 20);
+        bookBg.lineTo(panelX + panelW / 2, panelY + panelH - 20);
+        bookBg.strokePath();
+        bookBg.lineStyle(8, 0xFFD700, 0.7);
+        bookBg.strokeRoundedRect(panelX, panelY, panelW, panelH, 28);
+        bookBg.setScrollFactor(0);
+        bookBg.setDepth(5000);
 
-        // Añadir el texto directamente y reducir tamaño si excede el área disponible
+        // Animación de aparición del contenido
+        bookBg.setAlpha(0);
+        this.tweens.add({
+            targets: bookBg,
+            alpha: 1,
+            duration: 350,
+            ease: 'Sine.easeOut'
+        });
+
+        // Texto del libro
+        const reservedImageH = Math.min(80, Math.floor(panelH * 0.18));
+        const textAreaH = panelH - reservedImageH - 48;
         const content = item.bookText || 'Página en blanco...';
-        const txt = this.add.text(panelX + 20, panelY + 20, content, {
+        const txt = this.add.text(panelX + 40, panelY + 32, content, {
             fontFamily: 'Georgia, serif',
-            fontSize: '18px',
+            fontSize: '20px',
             color: '#222222',
-            wordWrap: { width: panelW - 40 }
+            wordWrap: { width: panelW / 2 - 60 }
         }).setScrollFactor(0).setOrigin(0);
 
-        // Si el texto es más alto que el área permitida, escalarlo ligeramente para que quepa
         if (txt.height > textAreaH) {
-            const scale = Math.max(0.6, textAreaH / txt.height); // no bajar demasiado la fuente
+            const scale = Math.max(0.6, textAreaH / txt.height);
             txt.setScale(scale);
         }
 
-        // Posición de la imagen: debajo del texto (usar displayHeight para considerar el scale)
-        const imgY = panelY + 20 + txt.displayHeight + 8;
-
-        // Añadir la imagen 'motocle_riendo' debajo del texto si está disponible
+        // Imagen decorativa en la página derecha
         let img = null;
         if (this.textures.exists('motocle_riendo')) {
-            img = this.add.image(panelX + panelW / 2, imgY, 'motocle_riendo').setScrollFactor(0).setOrigin(0.5, 0);
-            // Ajustar tamaño para que quepa en la porción reservada
-            const maxImgW = panelW - 80;
+            img = this.add.image(panelX + panelW * 0.75, panelY + 60, 'motocle_riendo')
+                .setScrollFactor(0).setOrigin(0.5, 0);
+            const maxImgW = panelW / 2 - 60;
             const maxImgH = reservedImageH;
-            const iw = img.width || maxImgW;
-            const ih = img.height || maxImgH;
-            let scale = Math.min(maxImgW / iw, maxImgH / ih, 1);
-            if (scale <= 0) scale = 1;
+            let scale = Math.min(maxImgW / img.width, maxImgH / img.height, 1);
             img.setScale(scale * 0.9);
+            img.setAlpha(0);
+            img.setScale(0.5 * scale);
+            this.tweens.add({
+                targets: img,
+                alpha: 1,
+                scale: scale * 0.9,
+                duration: 350,
+                ease: 'Back.easeOut'
+            });
         }
 
-        const hint = this.add.text(panelX + panelW - 20, panelY + panelH - 24, 'Presiona E o haz clic para cerrar', {
-            font: '14px Arial',
+        // Hint para cerrar
+        const hint = this.add.text(panelX + panelW - 24, panelY + panelH - 28, 'Presiona E o haz clic para cerrar', {
+            font: '15px Arial',
             fill: '#444'
         }).setOrigin(1, 0).setScrollFactor(0);
 
-        // Añadir en orden: backdrop (debajo), panel, texto, imagen (si existe) y hint
-        const toAdd = [panelBackdrop, panel, txt];
+        // Agregar todos los elementos al overlay
+        const toAdd = [bookBg, txt];
         if (img) toAdd.push(img);
         toAdd.push(hint);
         this.bookOverlay.add(toAdd);
 
-        // Si existe un contenedor de UI, mover el overlay a ese contenedor
-        try {
-            if (this.uiManager && this.uiManager.uiContainer) {
-                this.uiManager.uiContainer.add(this.bookOverlay);
-            }
-        } catch (e) {
-            console.warn('No se pudo añadir overlay al contenedor UI:', e);
-        }
-
-        // Asegurar que el overlay esté por encima de prompts u otros elementos
+        // Solo asegúrate de la profundidad
         try { this.bookOverlay.setDepth(10000); } catch(e) {}
 
-        // Capturar input de cierre: ya usamos this.eKey para abrir, así que escuchar E para cerrar también
         this._bookCloseHandler = () => this.closeBook(item);
-        if (this.eKey) {
-            // usamos 'once' para evitar múltiples listeners
-            this.eKey.once('down', this._bookCloseHandler);
-        }
-        // También cerrar con clic
+        if (this.eKey) this.eKey.once('down', this._bookCloseHandler);
         this.input.once('pointerdown', this._bookCloseHandler);
-        // Ocultar prompt si estaba visible y limpiar nearby
         try { this.hideItemPrompt(); } catch(e) {}
         this._nearbyItem = null;
 
-        // Si el opener fue el compañero, cerrar automáticamente pasados unos segundos
         if (opener === this.companion) {
             try { this._bookAutoClose = this.time.delayedCall(3500, () => this.closeBook(item)); } catch(e) {}
         }
-    }
+    });
+}
 
     closeBook(item) {
         if (!this._bookOpen) return;
@@ -1036,8 +1080,8 @@ this.player.attackDamage = 40; // Daño aumentado (antes era 20 o menos)
             pig.setBounce(0.1);
             pig.setCollideWorldBounds(true);
             pig.setVelocity(Phaser.Math.Between(-60, 60), 0);
-            pig.health = 50; // Vida media para nivel 1
-            pig.damage = 15; // Daño moderado
+            pig.health = 20; // REDUCIR MÁS LA VIDA DE ENEMIGOS
+            pig.damage = 10; // REDUCIR DAÑO (para que con 100 HP aguanten más)
             pig.enemyType = 'angrypig';
             pig.setScale(1.2);
             pig.isLevel2 = false; // Marcar como nivel 1

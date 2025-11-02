@@ -730,8 +730,8 @@ export default class EnemyManager {
                     enemy.setBounce(0.1);
                     enemy.setCollideWorldBounds(true);
                     enemy.setVelocity(Phaser.Math.Between(-50, 50), 0);
-                    enemy.health = 30;
-                    enemy.damage = 10;
+                    enemy.health = 20; // ✅ REDUCIR VIDA
+                    enemy.damage = 6;  // ✅ REDUCIR DAÑO
                     enemy.enemyType = 'gallina';
                     enemy.setScale(0.8);
                     
@@ -750,18 +750,48 @@ export default class EnemyManager {
     }
 
     hitEnemy(player, enemy) {
-        // Sin animación de golpe, solo resta vida y actualiza UI
-        console.log(`💔 NINJA HERIDO por ${enemy.enemyType}! Vida: ${player.health} → ${player.health - enemy.damage}`);
-        player.health -= enemy.damage;
-        this.scene.gameState.health = player.health;
-        this.scene.uiManager.updateHealth();
-        if (player.health <= 0) {
-            console.log("💀 NINJA MUERTO!");
-            player.setActive(false).setVisible(false);
-            // Solo terminar el juego si el compañero también está muerto o inactivo
-            if (!this.scene.companion || !this.scene.companion.active) {
-                this.scene.gameOver();
+        // ✅ VERIFICAR INVULNERABILIDAD Y SI ESTÁ VIVO
+        if (!player.isInvulnerable && player.health > 0) {
+            const damage = enemy.damage || 10;
+            console.log(`💔 NINJA HERIDO por ${enemy.enemyType}! Vida: ${player.health} → ${player.health - damage}`);
+            
+            player.health -= damage;
+            this.scene.gameState.health = player.health;
+            this.scene.uiManager.updateHealth();
+            
+            // ✅ AGREGAR INVULNERABILIDAD TEMPORAL (IGUAL QUE EL COMPAÑERO)
+            player.isInvulnerable = true;
+            player.setTint(0xff0000); // Color rojo al recibir daño
+            
+            // ✅ EMPUJAR AL JUGADOR (RETROALIMENTACIÓN VISUAL)
+            const pushForce = player.x < enemy.x ? -150 : 150;
+            player.setVelocityX(pushForce);
+            player.setVelocityY(-80);
+            
+            // ✅ SHAKE DE CÁMARA
+            this.scene.cameras.main.shake(150, 0.01);
+            
+            // ✅ QUITAR INVULNERABILIDAD DESPUÉS DE 1.5 SEGUNDOS
+            this.scene.time.delayedCall(1500, () => {
+                if (player && player.active && player.health > 0) {
+                    player.clearTint();
+                    player.isInvulnerable = false;
+                }
+            });
+            
+            // ✅ VERIFICAR MUERTE CORRECTAMENTE
+            if (player.health <= 0) {
+                player.health = 0; // ✅ EVITAR VIDA NEGATIVA
+                console.log("💀 NINJA MUERTO!");
+                player.setActive(false).setVisible(false);
+                
+                // Solo terminar el juego si el compañero también está muerto
+                if (!this.scene.companion || !this.scene.companion.active || this.scene.companion.health <= 0) {
+                    this.scene.gameOver();
+                }
             }
+        } else if (player.isInvulnerable) {
+            console.log("🛡️ Ninja invulnerable - sin daño");
         }
     }
 
