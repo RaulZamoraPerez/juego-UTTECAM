@@ -6,13 +6,31 @@ export default class MenuScene extends Phaser.Scene {
     preload() {
         this.load.image('menuBg', 'assets/menu/background.png');
         this.load.image('sky', 'assets/fondo.png');
+        // Intro splash de Motocle
+        this.load.image('motocle_like', 'assets/motocle/motocle_like.png');
         this.load.spritesheet('ninja-idle', 'assets/player/Idle (32x32).png', { frameWidth: 32, frameHeight: 32 });
     }
 
     create() {
         const { width, height } = this.sys.game.config;
-        console.log('🎮 MenuScene mejorado iniciado');
+        console.log('🎮 MenuScene iniciado (mostrando intro si está disponible)');
 
+        // Mostrar pantalla de intro primero. Si la imagen no está disponible, inicializar el menú directo.
+        try {
+            if (this.textures.exists('motocle_like')) {
+                this.showIntro();
+            } else {
+                this.initializeMenu();
+            }
+        } catch (e) {
+            console.log('Error comprobando intro, arrancando menú:', e);
+            this.initializeMenu();
+        }
+    }
+
+    // Inicializa el menú (la lógica que antes estaba en create)
+    initializeMenu() {
+        const { width, height } = this.sys.game.config;
         this.createAnimatedBackground(width, height);
         this.createFloatingParticles(width, height);
         this.createTitle(width);
@@ -22,6 +40,53 @@ export default class MenuScene extends Phaser.Scene {
         // Teclas rápidas
         this.input.keyboard.on('keydown-ENTER', () => this.startGame());
         this.input.keyboard.on('keydown-SPACE', () => this.startGame());
+    }
+
+    // Mostrar pantalla de intro con la imagen de Motocle
+    showIntro() {
+        const { width, height } = this.sys.game.config;
+        this.introContainer = this.add.container(0, 0).setDepth(4000);
+
+        // Fondo oscuro
+        const bg = this.add.rectangle(width/2, height/2, width, height, 0x000000, 1).setAlpha(0);
+        this.introContainer.add(bg);
+
+        // Imagen centrada
+        const img = this.add.image(width/2, height/2 - 30, 'motocle_like').setOrigin(0.5);
+        // Escalar la imagen para que quepa si es grande
+        const maxW = width * 0.8;
+        const maxH = height * 0.6;
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+        img.setScale(scale);
+        this.introContainer.add(img);
+
+        const hint = this.add.text(width/2, height - 80, 'Presiona cualquier tecla o haz clic para continuar', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
+        this.introContainer.add(hint);
+
+        // Animación de fade-in
+        this.tweens.add({ targets: bg, alpha: 0.6, duration: 450, ease: 'Sine.easeOut' });
+        this.tweens.add({ targets: img, alpha: 1, duration: 600, ease: 'Back.easeOut' });
+
+        // Handlers para continuar
+        this._introContinueHandler = () => this.hideIntro();
+        this.input.once('pointerdown', this._introContinueHandler);
+        this.input.keyboard.once('keydown', this._introContinueHandler);
+    }
+
+    hideIntro() {
+        if (!this.introContainer) return;
+        try {
+            // Animación de salida
+            this.tweens.add({ targets: this.introContainer.getAll(), alpha: 0, scale: 0.98, duration: 300, ease: 'Power2', onComplete: () => {
+                try { this.introContainer.destroy(); } catch(e) {}
+                this.introContainer = null;
+                this.initializeMenu();
+            }});
+        } catch (e) {
+            try { this.introContainer.destroy(); } catch(e) {}
+            this.introContainer = null;
+            this.initializeMenu();
+        }
     }
 
     // 🔮 Fondo dinámico con neblina y luz pulsante
@@ -89,7 +154,7 @@ export default class MenuScene extends Phaser.Scene {
             shadow: { offsetX: 0, offsetY: 0, color: '#8b5cf6', blur: 25, fill: true }
         };
 
-        const title = this.add.text(width / 2, 120, 'NINJA RESCUE', mainStyle).setOrigin(0.5);
+        const title = this.add.text(width / 2, 120, 'Operación Quincena - Motocle', mainStyle).setOrigin(0.5);
 
         const subtitle = this.add.text(width / 2, 190, 'LA AVENTURA DE MOTOCLE', {
             fontSize: '18px',

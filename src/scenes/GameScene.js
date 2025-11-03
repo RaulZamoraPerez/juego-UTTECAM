@@ -266,7 +266,12 @@ showMotocleSequence(doneCallback) {
             { speaker: 'player', text: 'Motocle, ¿cómo que te robaron la quincena? ¿Otra vez fuiste al Oxxo de la esquina con tu tarjeta?', duration: 4800 },
             { speaker: 'motocle', text: '¡Ay nooo! Sí, me pasó justo al salir a comprar unos tacos...', duration: 3800 },
             { speaker: 'player', text: 'No te preocupes, buscaremos tu quincena.', duration: 3200 },
-            { speaker: 'companion', text: 'jajaj si te ayudamos', duration: 2600 }
+            { speaker: 'companion', text: 'jajaj si te ayudamos', duration: 2600 },
+            { speaker: 'motocle', text: '“Busca las monedas por todo el mapa, ', duration: 2600 },
+           { speaker: 'motocle', text: '¡Y cuidado con los enemigos! Comieron tacos 🐶🦴 afuera de la uni...', duration: 3600 },
+           { speaker: 'motocle', text: 'y desde entonces se transformaron en bestias del laboratorio.', duration: 4600 },
+           {speaker: 'companion', text: 'vamos ', duration: 2000}
+
         ];
 
         let idx = 0;
