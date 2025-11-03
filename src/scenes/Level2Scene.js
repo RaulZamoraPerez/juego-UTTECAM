@@ -516,6 +516,28 @@ update() {
         // Ambos muertos, detener seguimiento
         this.cameras.main.stopFollow();
     }
+    
+    // Mantener el globo de Motocle siguiendo su posición si existe
+    if (this.motocleDialogBubble && this.motocle && this.motocle.active) {
+        try {
+            const container = this.motocleDialogBubble.container;
+            const pointer = this.motocleDialogBubble.pointer;
+            const boxH = this.motocleDialogBubble.boxHeight || 0;
+            const mx = this.motocle.x;
+            const my = this.motocle.y - (this.motocle.displayHeight || 24);
+            const boxY = my - boxH - 15;
+            if (container) {
+                container.x = mx;
+                container.y = boxY;
+            }
+            if (pointer) {
+                pointer.x = mx;
+                pointer.y = boxY + boxH / 2;
+            }
+        } catch (e) {
+            // no bloquear el update por errores menores
+        }
+    }
 
     // Controles de jugadores (solo si existen y están activos)
     if (this.player && this.player.active && this.playerManager) {
@@ -749,10 +771,19 @@ setupPhysics() {
             return;
         }
 
-        // Crear animaciones si no existen
+        // Limpieza preventiva: destruir cualquier Motocle residual en esta escena
+        try {
+            this.children.list.filter(child => child && child.texture && (child.texture.key === 'motocle_run' || child.texture.key === 'motocle_quieto2')).forEach(extra => {
+                console.log('Level2: destruyendo Motocle residual:', extra);
+                try { extra.destroy(); } catch(e) {}
+            });
+        } catch (e) {}
+
+        // Crear animaciones si no existen (framerate aumentado para correr más natural)
         try {
             if (!this.anims.exists('motocle_run_anim') && this.anims.exists('motocle_run')) {
-                this.anims.create({ key: 'motocle_run_anim', frames: this.anims.generateFrameNumbers('motocle_run', { start: 0, end: 2 }), frameRate: 6, repeat: -1 });
+                // Aumentar frameRate para que la animación de correr se vea más fluida y rápida
+                this.anims.create({ key: 'motocle_run_anim', frames: this.anims.generateFrameNumbers('motocle_run', { start: 0, end: 2 }), frameRate: 10, repeat: -1 });
             }
             if (!this.anims.exists('motocle_quieto2_anim') && this.anims.exists('motocle_quieto2')) {
                 this.anims.create({ key: 'motocle_quieto2_anim', frames: [{ key: 'motocle_quieto2', frame: 0 }], frameRate: 1, repeat: -1 });
@@ -776,9 +807,12 @@ setupPhysics() {
         // Tween de entrada (llega a la posición cercana al objetivo actual)
         const initialTarget = this.getMotocleTarget();
         const initialTargetX = (initialTarget && initialTarget.x) ? Math.max(120, initialTarget.x - 120) : 320;
-        this.tweens.add({ targets: this.motocle, x: initialTargetX, duration: 2200, ease: 'Power1', onComplete: () => {
+        // Tween de entrada: hacerlo un poco más rápido para que no parezca lento
+        this.tweens.add({ targets: this.motocle, x: initialTargetX, duration: 1600, ease: 'Power1', onComplete: () => {
             try { if (this.anims.exists('motocle_quieto2_anim')) this.motocle.play('motocle_quieto2_anim'); } catch(e) {}
             console.log('Motocle ha entrado en Nivel 2 como compañero bot');
+            // Mostrar pequeños diálogos que siguen a Motocle (en mundo, no UI)
+            try { this.showMotocleLevel2Sequence(); } catch (e) { console.log('Error mostrando diálogo Motocle Nivel2:', e); }
         }});
 
         // Vida sencilla para Motocle (se puede ampliar luego)
@@ -795,7 +829,6 @@ setupPhysics() {
 
     updateMotocleFollow() {
         if (!this.motocle || !this.motocle.body) return;
-
         const target = this.getMotocleTarget();
         if (!target) {
             // No hay objetivo vivo: detenerse
@@ -804,19 +837,31 @@ setupPhysics() {
             return;
         }
 
-        // Seguir al objetivo seleccionado
-        const followDistance = 80;
-        const maxSpeed = 140;
-        const targetX = target.x - followDistance;
-        const dx = targetX - this.motocle.x;
-        const desiredVx = Phaser.Math.Clamp(dx * 2, -maxSpeed, maxSpeed);
+        // Parámetros ajustables para comportamiento
+        const followDistance = 70; // distancia objetivo
+        const baseMaxSpeed = 160; // velocidad normal
+        const sprintMultiplier = 1.6; // si está lejos, corre más
+        const accelLerp = 0.20; // suavizado (mayor = más responsivo)
+
+        // Distancia al objetivo
+        const dxFull = target.x - this.motocle.x;
+        const absDist = Math.abs(dxFull);
+
+        // Determinar velocidad objetivo
+        let desiredSpeed = Phaser.Math.Clamp((dxFull - (dxFull > 0 ? followDistance : -followDistance)) * 2.4, -baseMaxSpeed, baseMaxSpeed);
+
+        // Si está muy lejos, sprint
+        if (absDist > 300) {
+            desiredSpeed = Phaser.Math.Clamp(desiredSpeed * sprintMultiplier, -baseMaxSpeed * sprintMultiplier, baseMaxSpeed * sprintMultiplier);
+        }
+
         const currentVx = this.motocle.body.velocity.x || 0;
-        const newVx = Phaser.Math.Linear(currentVx, desiredVx, 0.12);
+        const newVx = Phaser.Math.Linear(currentVx, desiredSpeed, accelLerp);
         this.motocle.setVelocityX(newVx);
 
-        // animaciones
+        // Animaciones más coherentes: correr cuando se mueve lo suficiente
         try {
-            if (Math.abs(newVx) > 10) {
+            if (Math.abs(newVx) > 15) {
                 if (this.anims.exists('motocle_run_anim')) this.motocle.play('motocle_run_anim', true);
             } else {
                 if (this.anims.exists('motocle_quieto2_anim')) this.motocle.play('motocle_quieto2_anim', true);
@@ -824,19 +869,151 @@ setupPhysics() {
         } catch (e) {}
 
         // Flip según la dirección hacia el objetivo
-        try { if (newVx < -10) this.motocle.setFlipX(true); else if (newVx > 10) this.motocle.setFlipX(false); } catch(e) {}
-
-        // Saltos: si el objetivo salta y está cerca, motocle salta
         try {
-            const targetJumping = target.body && target.body.velocity && target.body.velocity.y < -50;
-            const closeEnough = Math.abs(target.x - this.motocle.x) < 140;
-            if (targetJumping && closeEnough && this.motocle.body.touching.down) {
-                this.motocle.setVelocityY(-330);
+            if (newVx < -12) this.motocle.setFlipX(true);
+            else if (newVx > 12) this.motocle.setFlipX(false);
+        } catch(e) {}
+
+        // Saltos inteligentes: si encuentra un obstáculo frontal o hay un gap, saltar
+        try {
+            const onGround = this.motocle.body.blocked.down || this.motocle.body.touching.down;
+            const blockedSide = this.motocle.body.blocked.left || this.motocle.body.blocked.right;
+            const closeEnoughToJump = Math.abs(target.x - this.motocle.x) < 180;
+
+            // Saltar si el objetivo está en y más alto o si chocó con pared
+            const needJumpToReachTarget = target.y + 20 < this.motocle.y;
+            if (onGround && (blockedSide || needJumpToReachTarget) && closeEnoughToJump) {
+                this.motocle.setVelocityY(-340);
             }
-            if ((this.motocle.body.blocked.left || this.motocle.body.blocked.right) && this.motocle.body.touching.down) {
-                this.motocle.setVelocityY(-300);
+
+            // Si se queda atascado lateralmente, dar un pequeño impulso horizontal
+            if (blockedSide && onGround) {
+                const push = (this.motocle.x < target.x) ? 60 : -60;
+                this.motocle.setVelocityX(newVx + push);
             }
         } catch (e) {}
+    }
+
+    // Mostrar secuencia simple de mensajes sobre Motocle en Nivel 2
+    showMotocleLevel2Sequence() {
+        if (!this.motocle || !this.motocle.active) return;
+        // Evitar ejecutar la misma secuencia múltiples veces de forma concurrente
+        if (this._motocleLevel2DialogActive) return;
+        this._motocleLevel2DialogActive = true;
+        const messages = [
+            { text: 'Tengan cuidado chavos, hay mucho reprobado por aqui', duration: 3800 },
+            { text: 'Terminando esto vamos por pizza', duration: 3000 }
+        ];
+
+        let idx = 0;
+
+        const showNext = () => {
+            if (!this.scene.isActive()) { this._motocleLevel2DialogActive = false; return; }
+            if (idx >= messages.length) { this._motocleLevel2DialogActive = false; return; }
+
+            // destruir diálogo anterior si existe
+            if (this.motocleDialogBubble) {
+                try { if (this.motocleDialogBubble.floatTween) { this.motocleDialogBubble.floatTween.stop(); this.motocleDialogBubble.floatTween.remove(); } } catch(e) {}
+                try { this.motocleDialogBubble.container.destroy(); } catch(e) {}
+                try { this.motocleDialogBubble.pointer.destroy(); } catch(e) {}
+                this.motocleDialogBubble = null;
+            }
+
+            // Limpieza preventiva: destruir cualquier contenedor/graphics con texto y profundidad de diálogo
+            try {
+                this.children.list.slice().forEach(ch => {
+                    if (!ch) return;
+                    // Contenedores que contienen Text y con depth alrededor de nuestros globos (>=1500 && <=2500)
+                    if (ch.type === 'Container' && ch.depth >= 1500 && ch.depth <= 2500) {
+                        if (ch.list && ch.list.some(el => el && el.type === 'Text')) {
+                            console.log('Level2: eliminando contenedor residual de diálogo:', ch);
+                            try { ch.destroy(); } catch (e) {}
+                        }
+                    }
+                    // Graphics independientes que podrían ser punteros sueltos
+                    if (ch && ch.type === 'Graphics' && ch.depth >= 1500 && ch.depth <= 2500) {
+                        console.log('Level2: eliminando graphics residual de diálogo:', ch);
+                        try { ch.destroy(); } catch (e) {}
+                    }
+                });
+            } catch(e) {}
+
+            const msg = messages[idx];
+            const mx = this.motocle.x;
+            const my = this.motocle.y - (this.motocle.displayHeight || 24);
+
+            const padding = 18;
+            const maxWidth = 300;
+            const tempText = this.add.text(0, 0, msg.text, { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#2c3e50', align: 'center', wordWrap: { width: maxWidth - padding * 2 }, lineSpacing: 4 }).setOrigin(0.5);
+            const bounds = tempText.getBounds();
+            const textWidth = bounds.width;
+            const textHeight = bounds.height;
+            tempText.destroy();
+
+            const boxWidth = Math.min(textWidth + padding * 2, maxWidth);
+            const boxHeight = textHeight + padding * 2;
+            const boxY = my - boxHeight - 15;
+
+            const container = this.add.container(mx, boxY).setDepth(2000);
+            // Fondo y borde
+            const bg = this.add.graphics();
+            bg.fillStyle(0x000000, 0.15);
+            bg.fillRoundedRect(-boxWidth/2 + 2, -boxHeight/2 + 2, boxWidth, boxHeight, 12);
+            bg.fillStyle(0xffffff, 1);
+            bg.fillRoundedRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight, 12);
+            const border = this.add.graphics();
+            border.lineStyle(3, 0x4a90e2, 1);
+            border.strokeRoundedRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight, 12);
+
+            const text = this.add.text(0, 0, msg.text, { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#2c3e50', align: 'center', wordWrap: { width: maxWidth - padding * 2 }, lineSpacing: 4 }).setOrigin(0.5, 0.5);
+
+            container.add([bg, border, text]);
+
+            // pointer
+            const pointer = this.add.graphics();
+            pointer.setPosition(mx, boxY + boxHeight/2);
+            pointer.fillStyle(0x000000, 0.15);
+            pointer.fillTriangle(-10, 2, 10, 2, 0, 14);
+            pointer.fillStyle(0xffffff, 1);
+            pointer.fillTriangle(-10, 0, 10, 0, 0, 12);
+            pointer.lineStyle(3, 0x4a90e2, 1);
+            pointer.beginPath();
+            pointer.moveTo(-10, 0);
+            pointer.lineTo(0, 12);
+            pointer.lineTo(10, 0);
+            pointer.strokePath();
+            pointer.setDepth(2000);
+
+            // Asegurar que se muevan con el mundo (no con UI)
+            try { container.setScrollFactor(1); pointer.setScrollFactor(1); } catch(e) {}
+
+            // animaciones
+            container.setAlpha(0).setScale(0.85);
+            pointer.setAlpha(0).setScale(0.85);
+            this.tweens.add({ targets: [container, pointer], alpha: 1, scale: 1, duration: 350, ease: 'Back.easeOut' });
+            const floatTween = this.tweens.add({ targets: [container, pointer], y: '+=2', duration: 1800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
+
+            this.motocleDialogBubble = { container, pointer, floatTween, text, boxHeight };
+
+            // programar siguiente mensaje
+            idx++;
+            this.time.delayedCall(msg.duration, () => {
+                if (!this.scene.isActive()) { this._motocleLevel2DialogActive = false; return; }
+                try { floatTween.stop(); floatTween.remove(); } catch(e) {}
+                this.tweens.add({ targets: [container, pointer], alpha: 0, scale: 0.85, duration: 250, ease: 'Power2', onComplete: () => {
+                    try { container.destroy(); pointer.destroy(); } catch(e) {}
+                    this.motocleDialogBubble = null;
+                    if (idx < messages.length) {
+                        showNext();
+                    } else {
+                        // Secuencia terminada
+                        this._motocleLevel2DialogActive = false;
+                    }
+                } });
+            });
+        };
+
+        showNext();
     }
 
     hitMotocle(motocle, enemy) {

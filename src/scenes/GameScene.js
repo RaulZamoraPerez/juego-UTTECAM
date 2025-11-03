@@ -319,7 +319,23 @@ showMotocleSequence(doneCallback) {
             const bg = this.add.graphics();
             // Sombra
             bg.fillStyle(0x000000, 0.15);
-            bg.fillRoundedRect(-boxW/2 + 2, -boxH/2 + 2, boxW, boxH, 12);
+            // Limpieza preventiva: eliminar contenedores/graphics residuales de diálogo (depth ~2000)
+            try {
+                this.children.list.slice().forEach(ch => {
+                    if (!ch) return;
+                    if (ch.type === 'Container' && ch.depth >= 1500 && ch.depth <= 2500) {
+                        if (ch.list && ch.list.some(el => el && el.type === 'Text')) {
+                            console.log('GameScene: eliminando contenedor residual de diálogo:', ch);
+                            try { ch.destroy(); } catch (e) {}
+                        }
+                    }
+                    if (ch && ch.type === 'Graphics' && ch.depth >= 1500 && ch.depth <= 2500) {
+                        console.log('GameScene: eliminando graphics residual de diálogo:', ch);
+                        try { ch.destroy(); } catch (e) {}
+                    }
+                });
+            } catch(e) {}
+
             // Fondo blanco
             bg.fillStyle(0xffffff, 1);
             bg.fillRoundedRect(-boxW/2, -boxH/2, boxW, boxH, 12);
