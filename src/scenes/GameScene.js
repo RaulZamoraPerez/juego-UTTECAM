@@ -69,9 +69,11 @@ class GameScene extends Phaser.Scene {
     initMotocleMessages() {
         // Mensajes por defecto: puedes editarlos aquí
         this.motocleMessages = [
-            { text: '¡Hola chavos! Me secuestraron los Bandidos Sombríos. ¡Por favor, ayúdenme!', duration: 3500 },
-            { text: 'Mi familia está en la colina del faro. Recolecten monedas para abrir el portal.', duration: 4200 },
-            { text: 'Cuidado con los lobos: ataca cuando brillen en rojo. ¡Buena suerte!', duration: 3500 }
+            { text: 'Holaaa, ayudaaaaaa 😩😩!', duration: 5500 },
+            { text: '¡Se robaron mi quincena! Y los de TI hackearon el servidor de becas 😱💸!', duration: 5500 },
+            { text: 'ayudenme a recuperar mi quincena.. 🪙🪙 ', duration: 4200 },
+            { text: 'reparar el portal y salvar la base de datos de los proyectos😩', duration: 3500 },
+            { text: 'antes de que el Wi-Fi caiga para siempre.😂', duration: 3500 }
         ];
     }
 
@@ -901,6 +903,17 @@ openBook(item, opener = null) {
     // Crear overlay en pantalla fija (UI camera)
     const { width, height } = this.sys.game.config;
     this.bookOverlay = this.add.container(0, 0).setDepth(5000);
+    // Fijar el overlay en pantalla y asegurarse de que la cámara principal lo IGNORE
+    // para que solo la cámara de UI lo muestre (evita el "libro" duplicado).
+    try {
+        this.bookOverlay.setScrollFactor(0);
+        if (this.cameras && this.cameras.main && this.cameras.main.ignore) {
+            // cameras.main.ignore acepta un objeto o un array
+            this.cameras.main.ignore(this.bookOverlay);
+        }
+    } catch (e) {
+        console.log('Error aplicando ignore al overlay del libro:', e);
+    }
 
     // Marcar el item como deshabilitado mientras el modal está abierto para evitar re-firing de overlap
     try {
