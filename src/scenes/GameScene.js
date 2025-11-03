@@ -78,13 +78,17 @@ class GameScene extends Phaser.Scene {
     }
 
     // Muestra la secuencia de mensajes de Motocle uno tras otro
-showMotocleSequence() {
+showMotocleSequence(doneCallback) {
     if (!this.motocle || !this.motocle.active) return;
     if (!this.motocleMessages || !this.motocleMessages.length) this.initMotocleMessages();
     let idx = 0;
     const showNext = () => {
         if (!this.scene.isActive()) return;
-        if (idx >= this.motocleMessages.length) return;
+        if (idx >= this.motocleMessages.length) {
+            // Secuencia terminada
+            try { if (typeof doneCallback === 'function') doneCallback(); } catch (e) {}
+            return;
+        }
         const msg = this.motocleMessages[idx];
         
         // Destruir el cuadro de diálogo anterior
@@ -241,9 +245,11 @@ showMotocleSequence() {
                     pointer.destroy();
                     this.motocleDialogBubble = null;
                     
-                    // Mostrar el siguiente mensaje
+                    // Mostrar el siguiente mensaje o finalizar
                     if (idx < this.motocleMessages.length) {
                         showNext();
+                    } else {
+                        try { if (typeof doneCallback === 'function') doneCallback(); } catch (e) {}
                     }
                 },
             });
@@ -251,6 +257,133 @@ showMotocleSequence() {
     };
     showNext();
 }
+
+    // Nueva: conversación breve entre el jugador (player) y Motocle
+    showPlayerMotocleConversation() {
+        if ((!this.player || !this.player.active) || (!this.motocle || !this.motocle.active)) return;
+
+        const convo = [
+            { speaker: 'player', text: 'Motocle, ¿cómo que te robaron la quincena? ¿Otra vez fuiste al Oxxo de la esquina con tu tarjeta?', duration: 4800 },
+            { speaker: 'motocle', text: '¡Ay nooo! Sí, me pasó justo al salir a comprar unos tacos...', duration: 3800 },
+            { speaker: 'player', text: 'No te preocupes, buscaremos tu quincena.', duration: 3200 },
+            { speaker: 'companion', text: 'jajaj si te ayudamos', duration: 2600 }
+        ];
+
+        let idx = 0;
+
+        const showNext = () => {
+            if (!this.scene.isActive()) return;
+            if (idx >= convo.length) return;
+
+            // eliminar burbujas anteriores
+            if (this._convBubble) {
+                try { this._convBubble.container.destroy(); } catch (e) {}
+                try { this._convBubble.pointer.destroy(); } catch (e) {}
+                if (this._convBubble.floatTween) { try { this._convBubble.floatTween.stop(); } catch (e) {} }
+                this._convBubble = null;
+            }
+
+            const msg = convo[idx];
+            let speakerObj = null;
+            if (msg.speaker === 'player') speakerObj = this.player;
+            else if (msg.speaker === 'motocle') speakerObj = this.motocle;
+            else if (msg.speaker === 'companion') speakerObj = this.companion;
+            // Fallback
+            if (!speakerObj) speakerObj = this.player;
+            if (!speakerObj || !speakerObj.active) { idx++; showNext(); return; }
+
+            const sx = speakerObj.x;
+            const sy = speakerObj.y - (speakerObj.displayHeight || 24);
+
+            // Usar el mismo diseño que showMotocleSequence
+            const padding = 18;
+            const maxWidth = 300;
+            const temp = this.add.text(0, 0, msg.text, {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '15px',
+                color: '#2c3e50',
+                align: 'center',
+                wordWrap: { width: maxWidth - padding * 2 },
+                lineSpacing: 4
+            }).setOrigin(0.5);
+            const b = temp.getBounds();
+            const textW = b.width;
+            const textH = b.height;
+            temp.destroy();
+
+            const boxW = Math.min(textW + padding * 2, maxWidth);
+            const boxH = textH + padding * 2;
+            const boxY = sy - boxH - 15;
+
+            const container = this.add.container(sx, boxY).setDepth(2000);
+            const bg = this.add.graphics();
+            // Sombra
+            bg.fillStyle(0x000000, 0.15);
+            bg.fillRoundedRect(-boxW/2 + 2, -boxH/2 + 2, boxW, boxH, 12);
+            // Fondo blanco
+            bg.fillStyle(0xffffff, 1);
+            bg.fillRoundedRect(-boxW/2, -boxH/2, boxW, boxH, 12);
+
+            // Borde
+            const border = this.add.graphics();
+            border.lineStyle(3, 0x4a90e2, 1);
+            border.strokeRoundedRect(-boxW/2, -boxH/2, boxW, boxH, 12);
+
+            const text = this.add.text(0, 0, msg.text, {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '15px',
+                color: '#2c3e50',
+                align: 'center',
+                wordWrap: { width: maxWidth - padding * 2 },
+                lineSpacing: 4
+            }).setOrigin(0.5, 0.5);
+
+            container.add([bg, border, text]);
+
+            // Triángulo apuntador (fuera del contenedor)
+            const pointer = this.add.graphics();
+            pointer.setPosition(sx, boxY + boxH/2);
+            // Sombra del triángulo
+            pointer.fillStyle(0x000000, 0.15);
+            pointer.fillTriangle(-10, 2, 10, 2, 0, 14);
+            // Triángulo blanco
+            pointer.fillStyle(0xffffff, 1);
+            pointer.fillTriangle(-10, 0, 10, 0, 0, 12);
+            // Borde del triángulo
+            pointer.lineStyle(3, 0x4a90e2, 1);
+            pointer.beginPath();
+            pointer.moveTo(-10, 0);
+            pointer.lineTo(0, 12);
+            pointer.lineTo(10, 0);
+            pointer.strokePath();
+            pointer.setDepth(2000);
+
+            container.setAlpha(0).setScale(0.85);
+            pointer.setAlpha(0).setScale(0.85);
+            this.tweens.add({ targets: [container, pointer], alpha: 1, scale: 1, duration: 350, ease: 'Back.easeOut' });
+
+            const floatTween = this.tweens.add({ targets: [container, pointer], y: '+=2', duration: 1800, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
+
+            this._convBubble = { container, pointer, floatTween, speaker: speakerObj, boxH };
+
+            // configurar scroll/ignore para que no se duplique en UI
+            try {
+                container.setScrollFactor(1);
+                pointer.setScrollFactor(1);
+                if (this.uiCamera && this.uiCamera.ignore) this.uiCamera.ignore([container, pointer]);
+            } catch (e) {}
+
+            // programar siguiente
+            idx++;
+            this.time.delayedCall(msg.duration, () => {
+                if (!this.scene.isActive()) return;
+                if (floatTween) { try { floatTween.stop(); } catch (e) {} }
+                this.tweens.add({ targets: [container, pointer], alpha: 0, scale: 0.9, duration: 220, ease: 'Power2', onComplete: () => { try { container.destroy(); pointer.destroy(); } catch (e) {} this._convBubble = null; if (idx < convo.length) showNext(); } });
+            });
+        };
+
+        showNext();
+    }
     constructor() {
         super('GameScene');
         this.gameState = {
@@ -398,7 +531,9 @@ showMotocleSequence() {
                                 // Mostrar la secuencia de mensajes de Motocle (historia + petición de ayuda)
                                 if (!this.motocleGreetingShown) {
                                     this.motocleGreetingShown = true;
-                                    try { this.showMotocleSequence(); } catch (e) { console.log('Error mostrando secuencia de Motocle:', e); }
+                                    try { this.showMotocleSequence(() => {
+                                        try { this.showPlayerMotocleConversation(); } catch (e) { console.log('Error mostrando conversación player-motocle:', e); }
+                                    }); } catch (e) { console.log('Error mostrando secuencia de Motocle:', e); }
                                 }
                             }
                         }
@@ -560,6 +695,21 @@ this.playerManager.createCompanion();
             const my = this.motocle.y - this.motocle.displayHeight;
             this.motocleDialogBubble.text.x = mx;
             this.motocleDialogBubble.text.y = my - 30;
+        }
+        // Si hay una burbuja de conversación (player/companion) seguir al hablante
+        if (this._convBubble && this._convBubble.container && this._convBubble.speaker && this._convBubble.speaker.active) {
+            try {
+                const s = this._convBubble.speaker;
+                const sx = s.x;
+                const sy = s.y - (s.displayHeight || 24);
+                // Ajustar la posición del contenedor para que quede centrado sobre el hablante
+                this._convBubble.container.x = sx;
+                this._convBubble.container.y = sy - (this._convBubble.boxH || 0) / 2 - 12;
+                // Actualizar la posición del puntero si existe
+                if (this._convBubble.pointer && this._convBubble.container.y !== undefined) {
+                    this._convBubble.pointer.setPosition(sx, this._convBubble.container.y + (this._convBubble.boxH || 0) / 2);
+                }
+            } catch (e) {}
         }
         // Ya no se dibuja barra de vida flotante del compañero (solo en la UI superior)
         if (this.isGamePaused) return;
