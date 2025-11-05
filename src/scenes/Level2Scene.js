@@ -499,21 +499,16 @@ class Level2Scene extends Phaser.Scene {
 update() {
     if (this.isGamePaused) return;
 
-    // ✅ VERIFICAR QUE LOS OBJETOS EXISTEN ANTES DE USARLOS
-    
     // Control de cámara para personajes muertos
     if (this.player && this.player.active && this.cameras.main) {
-        // El ninja está vivo, seguirlo si no se está siguiendo ya
         if (this.cameras.main._follow !== this.player) {
             this.cameras.main.startFollow(this.player);
         }
     } else if (this.companion && this.companion.active && this.cameras.main) {
-        // Solo el compañero está vivo, seguirlo
         if (this.cameras.main._follow !== this.companion) {
             this.cameras.main.startFollow(this.companion);
         }
     } else if (this.cameras.main) {
-        // Ambos muertos, detener seguimiento
         this.cameras.main.stopFollow();
     }
     
@@ -534,12 +529,10 @@ update() {
                 pointer.x = mx;
                 pointer.y = boxY + boxH / 2;
             }
-        } catch (e) {
-            // no bloquear el update por errores menores
-        }
+        } catch (e) {}
     }
 
-    // Controles de jugadores (solo si existen y están activos)
+    // Controles de jugadores
     if (this.player && this.player.active && this.playerManager) {
         try {
             this.playerManager.handleMovement(this.keys);
@@ -556,7 +549,7 @@ update() {
         }
     }
 
-    // Actualizar Motocle (IA local) si existe
+    // Actualizar Motocle si existe
     if (this.motocle && this.motocle.active && this.motocle.body) {
         try { 
             this.updateMotocleFollow(); 
@@ -565,7 +558,7 @@ update() {
         }
     }
     
-    // Actualizar managers (solo si existen)
+    // Actualizar managers
     if (this.playerManager) {
         try {
             this.playerManager.handleAnimations();
@@ -584,7 +577,7 @@ update() {
     
     this.autoHeal();
     
-    // Ataques (solo si los objetos existen)
+    // Ataques
     if (this.player && this.player.active && this.keys.I && Phaser.Input.Keyboard.JustDown(this.keys.I) && this.playerManager) {
         try {
             this.playerManager.performAttack();
@@ -607,11 +600,11 @@ update() {
             this.scene.start('MenuScene');
         } catch(e) {
             console.log("⚠️ Error cambiando a MenuScene:", e);
-            this.scene.start('GameScene'); // Fallback
+            this.scene.start('GameScene');
         }
     }
     
-    // Zoom (solo si la cámara existe)
+    // Zoom
     if (this.cameras && this.cameras.main) {
         let cam = this.cameras.main;
         if (this.keys.Z && Phaser.Input.Keyboard.JustDown(this.keys.Z)) {
@@ -621,6 +614,9 @@ update() {
             cam.setZoom(Math.max(0.5, cam.zoom - 0.1));
         }
     }
+
+    // ✅ ESTA ES LA LÍNEA CRÍTICA QUE FALTABA:
+    this.checkLevelCompletion();
 }
 // ...existing code...
 
@@ -1061,8 +1057,17 @@ setupPhysics() {
         this.uiManager.updateScore();
         this.uiManager.updateCoins();
         
+        console.log(`🪙 Moneda Nivel 2: ${this.gameState.coinsCollected}/${this.gameState.totalCoins}`);
+        
+        // ✅ CAMBIAR ESTO:
+        // if (this.gameState.coinsCollected >= this.gameState.totalCoins) {
+        //     this.showVictoryLevel2(); // ❌ ESTO TE MANDA AL MENÚ
+        // }
+        
+        // ✅ POR ESTO:
         if (this.gameState.coinsCollected >= this.gameState.totalCoins) {
-            this.showVictoryLevel2();
+            console.log("🏆 ¡Todas las monedas recolectadas! Llamando levelComplete()");
+            this.levelComplete(); // ✅ ESTO TE MANDA AL NIVEL 3
         }
     }
 
@@ -1112,6 +1117,273 @@ setupPhysics() {
         console.log("🎮 Cambiando a GameOverScene con datos:", gameData);
         this.scene.start('GameOverScene', gameData);
     }
+
+    // En Level2Scene.js - modificar el método levelComplete()
+levelComplete() {
+    console.log("🎉 ¡Nivel 2 completado! Avanzando al Nivel 3...");
+    
+    this.physics.pause();
+    this.isGamePaused = true;
+    
+    const { width, height } = this.sys.game.config;
+    
+    // ✅ MENSAJE DE TRANSICIÓN AL NIVEL 3
+    const completionText = this.add.text(width/2, height/2 - 50, 
+        '🌙 ¡NIVEL 2 COMPLETADO! 🌙', 
+        {
+            fontSize: '36px',
+            color: '#4a90e2',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 4,
+            align: 'center'
+        }
+    ).setOrigin(0.5).setDepth(2000).setScrollFactor(0);
+
+    const nextLevelText = this.add.text(width/2, height/2 + 20, 
+        '🏰 Avanzando a: LA FORTALEZA 🏰\n\n💣 ¡Prepárate para los cañones! 💣', 
+        {
+            fontSize: '24px',
+            color: '#FFD700',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 3,
+            align: 'center',
+            lineSpacing: 8
+        }
+    ).setOrigin(0.5).setDepth(2000).setScrollFactor(0);
+
+    // ✅ NUEVO: TEXTO DE INSTRUCCIÓN PARA CONTINUAR
+    const continueText = this.add.text(width/2, height/2 + 120, 
+        '🎮 Presiona ESPACIO para continuar 🎮', 
+        {
+            fontSize: '18px',
+            color: '#ffffff',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 2,
+            align: 'center'
+        }
+    ).setOrigin(0.5).setDepth(2000).setScrollFactor(0);
+
+    // ✅ ANIMACIÓN DEL TEXTO
+    this.tweens.add({
+        targets: [completionText, nextLevelText],
+        alpha: { from: 0, to: 1 },
+        y: '-=20',
+        duration: 800,
+        ease: 'Back.easeOut'
+    });
+
+    // ✅ ANIMACIÓN PARPADEANTE PARA EL TEXTO DE CONTINUAR
+    this.tweens.add({
+        targets: continueText,
+        alpha: { from: 0, to: 1 },
+        duration: 1000,
+        delay: 1500,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+    });
+
+    // ✅ FUNCIÓN PARA AVANZAR AL NIVEL 3
+    const goToLevel3 = () => {
+        // Remover los listeners para evitar múltiples activaciones
+        this.input.keyboard.off('keydown-SPACE', spaceHandler);
+        this.input.off('pointerdown', clickHandler);
+        
+        console.log("🚀 Avanzando al Nivel 3...");
+        
+        this.cameras.main.fadeOut(1000, 0, 0, 0);
+        
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+            // ✅ PREPARAR DATOS PARA EL NIVEL 3
+            const level3Data = {
+                score: this.gameState.score + 750, // ✅ BONUS POR COMPLETAR NIVEL 2
+                coins: this.gameState.coinsCollected,
+                enemies: this.gameState.enemiesKilled,
+                health: Math.min(100, this.gameState.health + 25), // ✅ BONUS DE VIDA
+                maxHealth: 100,
+                level: 3,
+                previousLevel: 2 // ✅ INDICAR DE DÓNDE VIENE
+            };
+            
+            console.log("🚀 Iniciando Level3Scene con datos:", level3Data);
+            
+            // ✅ INICIAR NIVEL 3
+            this.scene.start('Level3Scene', level3Data);
+        });
+    };
+
+    // ✅ HANDLER PARA TECLA ESPACIO
+    const spaceHandler = (event) => {
+        if (event.code === 'Space') {
+            goToLevel3();
+        }
+    };
+
+    // ✅ HANDLER PARA CLICK
+    const clickHandler = () => {
+        goToLevel3();
+    };
+
+    // ✅ AGREGAR LISTENERS DE ESPACIO Y CLICK
+    this.input.keyboard.on('keydown-SPACE', spaceHandler);
+    this.input.on('pointerdown', clickHandler);
+
+    // ✅ TRANSICIÓN AUTOMÁTICA DESPUÉS DE 8 SEGUNDOS (SI NO SE PRESIONA ESPACIO)
+    this.autoAdvanceTimer = this.time.delayedCall(8000, () => {
+        console.log("⏰ Tiempo agotado - avanzando automáticamente...");
+        goToLevel3();
+    });
+}
+
+// ✅ ASEGUR que este método existe en Level2Scene.js
+checkLevelCompletion() {
+    // Verificar si se recolectaron todas las monedas
+    if (this.gameState.coinsCollected >= this.gameState.totalCoins) {
+        console.log("💰 ¡Todas las monedas recolectadas en Nivel 2!");
+        this.levelComplete();
+        return;
+    }
+    
+    // O si se eliminaron todos los enemigos Y se recolectaron todas las monedas
+    const activeEnemies = this.enemies.children.entries.filter(enemy => enemy.active);
+    if (activeEnemies.length === 0 && this.gameState.coinsCollected >= this.gameState.totalCoins) {
+        console.log("👹 ¡Todos los enemigos eliminados y monedas recolectadas en Nivel 2!");
+        this.levelComplete();
+    }
+}
+
+// ✅ LLAMAR checkLevelCompletion() EN EL UPDATE
+update() {
+    if (this.isGamePaused) return;
+
+    // Control de cámara para personajes muertos
+    if (this.player && this.player.active && this.cameras.main) {
+        // El ninja está vivo, seguirlo si no se está siguiendo ya
+        if (this.cameras.main._follow !== this.player) {
+            this.cameras.main.startFollow(this.player);
+        }
+    } else if (this.companion && this.companion.active && this.cameras.main) {
+        // Solo el compañero está vivo, seguirlo
+        if (this.cameras.main._follow !== this.companion) {
+            this.cameras.main.startFollow(this.companion);
+        }
+    } else if (this.cameras.main) {
+        // Ambos muertos, detener seguimiento
+        this.cameras.main.stopFollow();
+    }
+    
+    // Mantener el globo de Motocle siguiendo su posición si existe
+    if (this.motocleDialogBubble && this.motocle && this.motocle.active) {
+        try {
+            const container = this.motocleDialogBubble.container;
+            const pointer = this.motocleDialogBubble.pointer;
+            const boxH = this.motocleDialogBubble.boxHeight || 0;
+            const mx = this.motocle.x;
+            const my = this.motocle.y - (this.motocle.displayHeight || 24);
+            const boxY = my - boxH - 15;
+            if (container) {
+                container.x = mx;
+                container.y = boxY;
+            }
+            if (pointer) {
+                pointer.x = mx;
+                pointer.y = boxY + boxH / 2;
+            }
+        } catch (e) {
+            // no bloquear el update por errores menores
+        }
+    }
+
+    // Controles de jugadores (solo si existen y están activos)
+    if (this.player && this.player.active && this.playerManager) {
+        try {
+            this.playerManager.handleMovement(this.keys);
+        } catch(e) {
+            console.log("⚠️ Error en movimiento del jugador:", e);
+        }
+    }
+    
+    if (this.companion && this.companion.active && this.playerManager) {
+        try {
+            this.playerManager.handleCompanionMovement && this.playerManager.handleCompanionMovement();
+        } catch(e) {
+            console.log("⚠️ Error en movimiento del compañero:", e);
+        }
+    }
+
+    // Actualizar Motocle (IA local) si existe
+    if (this.motocle && this.motocle.active && this.motocle.body) {
+        try { 
+            this.updateMotocleFollow(); 
+        } catch (e) { 
+            console.log("⚠️ Error actualizando Motocle:", e);
+        }
+    }
+    
+    // Actualizar managers (solo si existen)
+    if (this.playerManager) {
+        try {
+            this.playerManager.handleAnimations();
+        } catch(e) {
+            console.log("⚠️ Error en animaciones:", e);
+        }
+    }
+    
+    if (this.enemyManager) {
+        try {
+            this.enemyManager.updateEnemies();
+        } catch(e) {
+            console.log("⚠️ Error actualizando enemigos:", e);
+        }
+    }
+    
+    this.autoHeal();
+    
+    // Ataques (solo si los objetos existen)
+    if (this.player && this.player.active && this.keys.I && Phaser.Input.Keyboard.JustDown(this.keys.I) && this.playerManager) {
+        try {
+            this.playerManager.performAttack();
+        } catch(e) {
+            console.log("⚠️ Error en ataque del jugador:", e);
+        }
+    }
+    
+    if (this.companion && this.companion.active && this.keys.ENTER && Phaser.Input.Keyboard.JustDown(this.keys.ENTER) && this.playerManager) {
+        try {
+            this.playerManager.performCompanionAttack();
+        } catch(e) {
+            console.log("⚠️ Error en ataque del compañero:", e);
+        }
+    }
+    
+    // ESC para menú
+    if (this.keys.ESC && Phaser.Input.Keyboard.JustDown(this.keys.ESC)) {
+        try {
+            this.scene.start('MenuScene');
+        } catch(e) {
+            console.log("⚠️ Error cambiando a MenuScene:", e);
+            this.scene.start('GameScene'); // Fallback
+        }
+    }
+    
+    // Zoom (solo si la cámara existe)
+    if (this.cameras && this.cameras.main) {
+        let cam = this.cameras.main;
+        if (this.keys.Z && Phaser.Input.Keyboard.JustDown(this.keys.Z)) {
+            cam.setZoom(Math.min(2.5, cam.zoom + 0.1));
+        }
+        if (this.keys.X && Phaser.Input.Keyboard.JustDown(this.keys.X)) {
+            cam.setZoom(Math.max(0.5, cam.zoom - 0.1));
+        }
+    }
+
+    // ✅ VERIFICAR COMPLETACIÓN DEL NIVEL
+    this.checkLevelCompletion();
+}
+// ...existing code...
 }
 
 export default Level2Scene;
