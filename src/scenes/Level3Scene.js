@@ -77,16 +77,6 @@ class Level3Scene extends Phaser.Scene {
                     margin: 0,
                     spacing: 0
                 });
-                
-            // Cargar spritesheet del ataque del esqueleto
-            this.load.spritesheet('skeleton_attack', 
-                'assets/Skeleton_White/Skeleton_With_VFX/Skeleton_01_White_Attack2.png', 
-                { 
-                    frameWidth: 96,    // 960/10 = 96 pixels por frame
-                    frameHeight: 64,    // mismas dimensiones que walk
-                    margin: 0,
-                    spacing: 0
-                });
             
         } catch (error) {
             console.log("⚠️ Error cargando assets del Nivel 3:", error);
@@ -345,10 +335,18 @@ createLevel3Cannons() {
     this.cannons = this.physics.add.staticGroup();
     this.cannonBalls = this.physics.add.group();
     
-    // Solo 2 cañones estratégicamente ubicados
+    // ✅ CAÑONES PERFECTAMENTE ALINEADOS CON LAS PLATAFORMAS EXACTAS
     const cannonPositions = [
-        { x: 800, y: 218, direction: 'left', platform: 'Base cañón 1' },     // Primer cañón
-        { x: 2000, y: 218, direction: 'right', platform: 'Base cañón 2' }    // Segundo cañón
+        // ✅ BASADO EN LAS COORDENADAS DE TUS PLATAFORMAS
+        { x: 400, y: 268, direction: 'right', platform: 'Base cañón 1' },    // y: 300-32 = 268
+        { x: 800, y: 218, direction: 'left', platform: 'Base cañón 2' },     // y: 250-32 = 218
+        { x: 1200, y: 168, direction: 'right', platform: 'Base cañón 3' },   // y: 200-32 = 168
+        
+        // ✅ EN PLATAFORMAS PRINCIPALES
+        { x: 600, y: 418, direction: 'left', platform: 'Plataforma pequeña' },   // y: 450-32 = 418
+        { x: 1300, y: 288, direction: 'right', platform: 'Plataforma alta' },    // y: 320-32 = 288
+        { x: 2000, y: 218, direction: 'left', platform: 'Plataforma muy alta' }, // y: 250-32 = 218
+        { x: 2800, y: 318, direction: 'right', platform: 'Plataforma final' }    // y: 350-32 = 318
     ];
     
     cannonPositions.forEach((pos, index) => {
@@ -365,7 +363,7 @@ createLevel3Cannons() {
         cannon.damage = 35;
         cannon.direction = pos.direction;
         cannon.lastFire = 0;
-                    cannon.fireRate = 3500 + (index * 500); // Más tiempo entre disparos
+        cannon.fireRate = 2500 + (index * 400);
         cannon.enemyType = 'cannon';
         cannon.isDestroyed = false;
         cannon.platformName = pos.platform;
@@ -394,7 +392,7 @@ createLevel3Cannons() {
     createLevel3Enemies() {
         this.enemies = this.physics.add.group();
         
-        // Crear animaciones del esqueleto
+        // Crear animación del esqueleto
         this.anims.create({
             key: 'skeleton_walk_anim',
             frames: this.anims.generateFrameNumbers('skeleton_walk', { 
@@ -404,21 +402,9 @@ createLevel3Cannons() {
             frameRate: 10,
             repeat: -1
         });
-
-        // Crear animación de ataque
-        this.anims.create({
-            key: 'skeleton_attack_anim',
-            frames: this.anims.generateFrameNumbers('skeleton_attack', {
-                start: 1,
-                end: 10  // 10 frames en total
-            }),
-            frameRate: 15,  // Un poco más rápido que caminar
-            repeat: 0      // No se repite, solo una vez
-        });
         
-        // Crear un esqueleto a la mitad del mapa
-        const startX = this.levelWorldWidth / 2; // Mitad del mapa
-        const skeleton = this.enemies.create(startX, 500, 'skeleton_walk');
+        // Crear un esqueleto
+        const skeleton = this.enemies.create(300, 500, 'skeleton_walk');
         skeleton.setScale(1);  // Tamaño original
         skeleton.setBounce(0.1);
         skeleton.setCollideWorldBounds(true);
@@ -427,140 +413,35 @@ createLevel3Cannons() {
         skeleton.damage = 40;
         skeleton.enemyType = 'skeleton';
         skeleton.setOrigin(0.5, 1); // Alinear con el suelo
-        skeleton.isAttacking = false;
-        skeleton.attackCooldown = 0;
-        skeleton.attackRange = 100; // Rango de ataque
-        skeleton.currentTarget = null; // Para rastrear a quién está atacando
         
         // Iniciar la animación de caminar
         skeleton.play('skeleton_walk_anim', true);
         
-        // Añadir comportamiento de patrulla en la mitad del mapa
+        // Añadir comportamiento de patrulla
         skeleton.patrolPoints = [
-            { x: startX - 150, y: 500 }, // 150 unidades a la izquierda del punto medio
-            { x: startX + 150, y: 500 }  // 150 unidades a la derecha del punto medio
+            { x: 300, y: 500 },
+            { x: 600, y: 500 }
         ];
         skeleton.currentPoint = 0;
         skeleton.direction = 1;
         
-        // Actualizar el movimiento y ataque del esqueleto
+        // Actualizar el movimiento del esqueleto
         this.time.addEvent({
             delay: 100,
             callback: () => {
                 if (!skeleton.active) return;
                 
-                const currentTime = this.time.now;
-                
-                // Función para verificar distancia a un objetivo
-                const checkTarget = (target) => {
-                    if (!target || !target.active) return Infinity;
-                    return Phaser.Math.Distance.Between(
-                        skeleton.x, skeleton.y,
-                        target.x, target.y
-                    );
-                };
-
-                // Verificar distancias a ambos objetivos
-                const distanceToPlayer = checkTarget(this.player);
-                const distanceToCompanion = checkTarget(this.companion);
-
-                // Determinar el objetivo más cercano
-                let closestTarget = null;
-                let closestDistance = Infinity;
-
-                if (distanceToPlayer < closestDistance) {
-                    closestDistance = distanceToPlayer;
-                    closestTarget = this.player;
-                }
-                if (distanceToCompanion < closestDistance) {
-                    closestDistance = distanceToCompanion;
-                    closestTarget = this.companion;
-                }
-
-                // Actualizar el objetivo actual si hay uno más cercano
-                if (closestTarget && closestDistance < skeleton.attackRange) {
-                    skeleton.currentTarget = closestTarget;
-                }
-                    
-                // Si hay un objetivo en rango y no está en cooldown
-                if (skeleton.currentTarget && closestDistance < skeleton.attackRange && 
-                    currentTime > skeleton.attackCooldown && !skeleton.isAttacking) {
-                    // Iniciar ataque
-                    skeleton.isAttacking = true;
-                    
-                    // Voltear hacia el objetivo
-                    skeleton.setFlipX(skeleton.currentTarget.x < skeleton.x);
-                    
-                    // Reproducir animación de ataque
-                    skeleton.play('skeleton_attack_anim', true).once('animationcomplete', () => {
-                        // Cuando termine la animación
-                        if (skeleton.active) {
-                            skeleton.isAttacking = false;
-                            skeleton.play('skeleton_walk_anim', true);
-                        }
-                    });
-                    
-                    // Configurar cooldown
-                    skeleton.attackCooldown = currentTime + 1500; // 1.5 segundos entre ataques
-                } else if (closestDistance > skeleton.attackRange * 1.5) {
-                    // Si el objetivo se aleja demasiado, olvidarlo
-                    skeleton.currentTarget = null;
-                }
-                
-                // Manejar el movimiento
                 const targetX = skeleton.patrolPoints[skeleton.currentPoint].x;
                 
-                // Si no está atacando o la animación de ataque terminó
-                if (!skeleton.isAttacking) {
-                    // Verificar si llegó al punto de patrulla
-                    if (Math.abs(skeleton.x - targetX) < 10) {
-                        skeleton.currentPoint = (skeleton.currentPoint + 1) % skeleton.patrolPoints.length;
-                        skeleton.direction *= -1;
-                        skeleton.setFlipX(skeleton.direction < 0);
-                    }
-                    
-                    // Establecer velocidad de movimiento
+                if (Math.abs(skeleton.x - targetX) < 10) {
+                    skeleton.currentPoint = (skeleton.currentPoint + 1) % skeleton.patrolPoints.length;
+                    skeleton.direction *= -1;
                     skeleton.setVelocityX(60 * skeleton.direction);
+                    skeleton.setFlipX(skeleton.direction < 0);
                     
-                    // Asegurar que la animación de caminar está activa
+                    // Asegurar que la animación sigue corriendo
                     if (!skeleton.anims.isPlaying) {
-                        skeleton.play('skeleton_walk_anim', true);
-                    }
-                } else {
-                    // Durante el ataque, reducir la velocidad pero no detenerlo completamente
-                    skeleton.setVelocityX(skeleton.direction * 20);
-                }
-                
-                // Perseguir al objetivo más cercano si está en rango de detección
-                if (!skeleton.isAttacking) {
-                    let targetToFollow = skeleton.currentTarget;
-                    let targetDistance = Infinity;
-                    
-                    // Si no hay objetivo actual, buscar el más cercano
-                    if (!targetToFollow) {
-                        if (this.player && this.player.active) {
-                            const playerDist = checkTarget(this.player);
-                            if (playerDist < targetDistance) {
-                                targetDistance = playerDist;
-                                targetToFollow = this.player;
-                            }
-                        }
-                        if (this.companion && this.companion.active) {
-                            const companionDist = checkTarget(this.companion);
-                            if (companionDist < targetDistance) {
-                                targetDistance = companionDist;
-                                targetToFollow = this.companion;
-                            }
-                        }
-                    } else {
-                        targetDistance = checkTarget(targetToFollow);
-                    }
-                    
-                    // Si hay un objetivo alcanzable, seguirlo
-                    if (targetToFollow && targetDistance < 200 && targetDistance > skeleton.attackRange) {
-                        const targetDirection = targetToFollow.x < skeleton.x ? -1 : 1;
-                        skeleton.direction = targetDirection;
-                        skeleton.setFlipX(targetDirection === -1);
+                        skeleton.play('skeleton_walk_anim');
                     }
                 }
             },
@@ -572,17 +453,33 @@ createLevel3Cannons() {
         const bluebirdTexture = this.textures.exists('bluebird-flying') ? 'bluebird-flying' : 'gallinaFallback';
         const angryPigTexture = this.textures.exists('angrypig-idle') ? 'angrypig-idle' : 'gallinaFallback';
         
-        // Solo algunos enemigos estratégicos y el esqueleto
+        // ✅ ENEMIGOS ESTRATÉGICAMENTE COLOCADOS ENTRE CAÑONES
         const enemyPositions = [
-            // Zona inicial
+            // Zona inicial - cerca del primer cañón
+            { x: 300, y: 500, type: 'angrypig' },   // Cerdo patrullando
             { x: 550, y: 350, type: 'bluebird' },  // Pájaro volando
             
-            // Zona media
-            { x: 1100, y: 130, type: 'bluebird' }, // Pájaro alto
+            // Zona media - entre cañones 2 y 3
+            { x: 750, y: 180, type: 'bluebird' },  // Pájaro alto
+            { x: 950, y: 340, type: 'rino' },      // Rino tanque
+            { x: 1100, y: 130, type: 'bluebird' }, // Pájaro muy alto
             
-            // Zona final
+            // Zona alta - cerca del cañón 3
+            { x: 1250, y: 130, type: 'angrypig' }, // Cerdo en plataforma alta
+            { x: 1400, y: 270, type: 'rino' },     // Rino defensor
+            
+            // Zona intermedia
+            { x: 1600, y: 100, type: 'bluebird' }, // Pájaro patrol aéreo
+            { x: 1850, y: 180, type: 'angrypig' }, // Cerdo avanzado
+            
+            // Zona final - antes del último cañón
             { x: 2200, y: 440, type: 'rino' },     // Rino guardian
-            { x: 2650, y: 280, type: 'angrypig' }  // Cerdo final
+            { x: 2400, y: 120, type: 'bluebird' }, // Pájaro final
+            { x: 2650, y: 280, type: 'angrypig' }, // Cerdo boss
+            
+            // Extra challenge
+            { x: 3000, y: 150, type: 'bluebird' }, // Pájaro final boss
+            { x: 3200, y: 280, type: 'rino' }      // Rino final boss
         ];
 
         enemyPositions.forEach((pos, index) => {
@@ -1031,7 +928,7 @@ createLevel3Cannons() {
     }
 
     isPlayerInCannonRange(cannon) {
-        const range = 150; // Rango de detección reducido - solo dispara cuando está muy cerca
+        const range = 500; // Rango de detección
         
         // Verificar jugador
         if (this.player && this.player.active) {
@@ -1039,11 +936,29 @@ createLevel3Cannons() {
                 cannon.x, cannon.y, this.player.x, this.player.y
             );
             
+            // ✅ DEBUG: Verificar si está en el lado correcto
             const playerSide = this.player.x < cannon.x ? 'left' : 'right';
             
-            // Solo dispara si el jugador está muy cerca Y en la dirección correcta
-            if (distance < range && cannon.direction === playerSide) {
-                console.log(`🎯 Jugador detectado muy cerca: ${distance.toFixed(0)} unidades`);
+            if (distance < range) {
+                console.log(`🎯 Jugador detectado: está al ${playerSide} del cañón que apunta hacia ${cannon.direction}`);
+                
+                // ✅ OPCIONAL: Solo disparar si el jugador está en la dirección correcta
+                // if (cannon.direction === playerSide) {
+                    return true;
+                // }
+            }
+        }
+        
+        // Verificar compañero
+        if (this.companion && this.companion.active) {
+            const distance = Phaser.Math.Distance.Between(
+                cannon.x, cannon.y, this.companion.x, this.companion.y
+            );
+            
+            const companionSide = this.companion.x < cannon.x ? 'left' : 'right';
+            
+            if (distance < range) {
+                console.log(`🎯 Compañero detectado: está al ${companionSide} del cañón que apunta hacia ${cannon.direction}`);
                 return true;
             }
         }

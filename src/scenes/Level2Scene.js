@@ -60,6 +60,55 @@ class Level2Scene extends Phaser.Scene {
     create() {
         console.log('🎮 Creando Nivel 2...');
         
+        // ✅ LIMPIAR COMPLETAMENTE CUALQUIER MOTOCLE PREVIO
+        console.log("🧹 Limpiando Motocles residuales...");
+        this._motocleLevel2DialogActive = false;
+        
+        // Limpiar diálogos
+        if (this.motocleDialogBubble) {
+            try {
+                if (this.motocleDialogBubble.floatTween) {
+                    this.motocleDialogBubble.floatTween.stop();
+                    this.motocleDialogBubble.floatTween.remove();
+                }
+                if (this.motocleDialogBubble.container) this.motocleDialogBubble.container.destroy();
+                if (this.motocleDialogBubble.pointer) this.motocleDialogBubble.pointer.destroy();
+            } catch(e) {}
+            this.motocleDialogBubble = null;
+        }
+        
+        // ✅ DESTRUIR CUALQUIER MOTOCLE EXISTENTE (de esta escena o anterior)
+        if (this.motocle) {
+            try {
+                console.log("🧹 Destruyendo Motocle existente");
+                this.motocle.destroy();
+            } catch(e) {
+                console.log("⚠️ Error destruyendo motocle:", e);
+            }
+            this.motocle = null;
+        }
+        
+        // ✅ BUSCAR Y DESTRUIR TODOS LOS SPRITES DE MOTOCLE EN LA ESCENA
+        try {
+            const motocleSprites = this.children.list.filter(child => {
+                return child && child.texture && 
+                       (child.texture.key === 'motocle_run' || child.texture.key === 'motocle_quieto2');
+            });
+            
+            if (motocleSprites.length > 0) {
+                console.log(`🧹 Encontrados ${motocleSprites.length} sprites de Motocle - destruyendo...`);
+                motocleSprites.forEach(sprite => {
+                    try {
+                        sprite.destroy();
+                    } catch(e) {
+                        console.log("⚠️ Error destruyendo sprite de Motocle:", e);
+                    }
+                });
+            }
+        } catch(e) {
+            console.log("⚠️ Error buscando sprites de Motocle:", e);
+        }
+        
         // Configurar controles
         this.setupControls();
 
@@ -89,14 +138,17 @@ class Level2Scene extends Phaser.Scene {
         this.gameState.health = this.player.health;   // Sincronizar
         this.player.isInvulnerable = false;          // Quitar invulnerabilidad
         this.player.clearTint();                     // Quitar efectos visuales
+        
+        console.log(`👤 Jugador creado - Textura: ${this.player.texture.key}, Pos: (${this.player.x}, ${this.player.y})`);
     
         this.playerManager.createCompanion();
         this.companionMaxHealth = 100;  // ✅ CAMBIAR A 100 PARA CONSISTENCIA
         this.companionHealth = 100;     // ✅ CAMBIAR A 100 PARA CONSISTENCIA
-        // Crear Motocle como tercer personaje (player, amigo, motocle)
-        try {
-            this.createMotocle();
-        } catch (e) { console.log('Error creando Motocle en Level2:', e); }
+        
+        console.log(`👥 Compañero creado - Textura: ${this.companion.texture.key}, Pos: (${this.companion.x}, ${this.companion.y})`);
+        
+        // ✅ CREAR MOTOCLE IGUAL QUE EN GAMESCENE
+        this.createMotocleLevel2();
         
         this.createLevel2Coins();
         this.createLevel2Enemies();
@@ -498,6 +550,24 @@ class Level2Scene extends Phaser.Scene {
   // ...existing code...
 update() {
     if (this.isGamePaused) return;
+    
+    // ✅ DEBUG: Contar cuántos Motocles hay en la escena CADA 2 SEGUNDOS
+    if (!this._lastMotocleCountTime) this._lastMotocleCountTime = 0;
+    if (this.time.now - this._lastMotocleCountTime > 2000) {
+        this._lastMotocleCountTime = this.time.now;
+        try {
+            const allMotocles = this.children.list.filter(child => 
+                child && child.texture && 
+                (child.texture.key === 'motocle_run' || child.texture.key === 'motocle_quieto2')
+            );
+            console.log(`🔍 DEBUG: Total de Motocles en la escena: ${allMotocles.length}`);
+            allMotocles.forEach((m, i) => {
+                console.log(`  Motocle ${i+1}: Oficial=${m.isOfficialMotocle}, Dueño=${m.sceneOwner}, Pos=(${Math.round(m.x)}, ${Math.round(m.y)}), Activo=${m.active}, Escala=${m.scaleX}`);
+            });
+        } catch(e) {
+            console.log("⚠️ Error contando Motocles:", e);
+        }
+    }
 
     // Control de cámara para personajes muertos
     if (this.player && this.player.active && this.cameras.main) {
@@ -512,7 +582,9 @@ update() {
         this.cameras.main.stopFollow();
     }
     
-    // Mantener el globo de Motocle siguiendo su posición si existe
+    // ❌ COMENTADO: Esto causaba globos duplicados porque interfería con el floatTween
+    // El globo ya sigue a Motocle con setScrollFactor(1) y se mueve con el mundo
+    /*
     if (this.motocleDialogBubble && this.motocle && this.motocle.active) {
         try {
             const container = this.motocleDialogBubble.container;
@@ -531,6 +603,7 @@ update() {
             }
         } catch (e) {}
     }
+    */
 
     // Controles de jugadores
     if (this.player && this.player.active && this.playerManager) {
@@ -730,16 +803,8 @@ setupPhysics() {
         this.physics.add.overlap(this.companion, this.enemies, this.hitCompanion, null, this);
     }
     
-    // Colisiones de Motocle (solo si existe y está activo)
-    if (this.motocle && this.motocle.active && this.motocle.body) {
-        try {
-            this.physics.add.collider(this.motocle, this.platforms);
-            this.physics.add.overlap(this.motocle, this.coins, this.collectCoin, null, this);
-            this.physics.add.overlap(this.motocle, this.enemies, this.hitMotocle, null, this);
-        } catch(e) {
-            console.log("⚠️ Error configurando física de Motocle:", e);
-        }
-    }
+    // ✅ Colisiones de Motocle ya se configuran en createMotocleLevel2()
+    // (El collider se agrega inmediatamente después de crear el sprite)
     
     // Colisiones de objetos con plataformas
     this.physics.add.collider(this.coins, this.platforms);
@@ -760,60 +825,376 @@ setupPhysics() {
     }
 
     // --- Motocle helper methods (Level 2 companion bot) ---
-    createMotocle() {
-        // Si no hay assets, no crear Motocle
-        if (!this.textures.exists('motocle_run') && !this.textures.exists('motocle_quieto2')) {
-            console.log('Motocle sprites no encontrados — no se creará Motocle en Nivel 2');
-            return;
+    // Método auxiliar para limpiar el diálogo de Motocle actual
+    clearAllMotocleDialogs() {
+        console.log("🧹 Limpiando diálogo de Motocle...");
+        
+        // Limpiar el diálogo actual si existe
+        if (this.motocleDialogBubble) {
+            try {
+                if (this.motocleDialogBubble.floatTween) {
+                    this.motocleDialogBubble.floatTween.stop();
+                    this.motocleDialogBubble.floatTween.remove();
+                }
+                if (this.motocleDialogBubble.container) {
+                    this.motocleDialogBubble.container.destroy();
+                }
+                if (this.motocleDialogBubble.pointer) {
+                    this.motocleDialogBubble.pointer.destroy();
+                }
+            } catch(e) {
+                console.log("⚠️ Error limpiando diálogo actual:", e);
+            }
+            this.motocleDialogBubble = null;
         }
+    }
 
-        // Limpieza preventiva: destruir cualquier Motocle residual en esta escena
-        try {
-            this.children.list.filter(child => child && child.texture && (child.texture.key === 'motocle_run' || child.texture.key === 'motocle_quieto2')).forEach(extra => {
-                console.log('Level2: destruyendo Motocle residual:', extra);
-                try { extra.destroy(); } catch(e) {}
-            });
-        } catch (e) {}
-
-        // Crear animaciones si no existen (framerate aumentado para correr más natural)
-        try {
-            if (!this.anims.exists('motocle_run_anim') && this.anims.exists('motocle_run')) {
-                // Aumentar frameRate para que la animación de correr se vea más fluida y rápida
-                this.anims.create({ key: 'motocle_run_anim', frames: this.anims.generateFrameNumbers('motocle_run', { start: 0, end: 2 }), frameRate: 10, repeat: -1 });
-            }
-            if (!this.anims.exists('motocle_quieto2_anim') && this.anims.exists('motocle_quieto2')) {
-                this.anims.create({ key: 'motocle_quieto2_anim', frames: [{ key: 'motocle_quieto2', frame: 0 }], frameRate: 1, repeat: -1 });
-            }
-        } catch (e) { console.log('Error creando anims motocle:', e); }
-
+    // ✅ CREAR MOTOCLE IGUAL QUE EN GAMESCENE
+    createMotocleLevel2() {
+        console.log("🏍️ Creando Motocle en Nivel 2 (estilo GameScene)...");
+        
+        // Limpiar cualquier residuo de Motocle anterior
+        this.destroyMotocleDialog();
+        if (this.motocle && this.motocle.destroy) {
+            this.motocle.destroy();
+            this.motocle = null;
+        }
+        
+        // Banderas para evitar múltiples ejecuciones
+        this.motocleHasEntered = false;
+        this.motocleGreetingShown = false;
+        this.motocleTweenCompleted = false;
+        this.motocleEntryTimer = null;
+        this.motocleEntryTween = null;
+        
+        const MOTOCLE_SCALE = 0.16;
         const PLAYER_BASE_Y = 450;
-        const startX = -220;
-        const scale = 0.16;
-
-        this.motocle = this.physics.add.sprite(startX, PLAYER_BASE_Y, this.textures.exists('motocle_run') ? 'motocle_run' : 'motocle_quieto2', 0).setDepth(100);
-        this.motocle.setScale(scale);
+        
+        // Eliminar cualquier Motocle existente
+        this.children.list.filter(child => child.texture && (child.texture.key === 'motocle_run' || child.texture.key === 'motocle_quieto2')).forEach(motocle => {
+            console.log('Destruyendo Motocle existente:', motocle);
+            motocle.destroy();
+        });
+        
+        // Crear Motocle (igual que GameScene)
+        this.motocle = this.physics.add.sprite(-200, PLAYER_BASE_Y, 'motocle_run', 0).setDepth(100);
+        this.motocle.setScale(MOTOCLE_SCALE);
         this.motocle.setBounce(0.2);
         this.motocle.setCollideWorldBounds(true);
         this.motocle.setOrigin(0.5, 1);
-        try { this.motocle.body.setOffset(0, this.motocle.height * (1 - this.motocle.originY)); } catch(e) {}
+        this.motocle.body.setOffset(0, this.motocle.height * (1 - this.motocle.originY));
+        
+        // ✅ CONFIGURAR GRAVEDAD (igual que el jugador)
+        this.motocle.body.setGravityY(300);
+        
+        this.motocle.setVisible(false);  // ✅ Invisible al inicio
+        this.motocle.setActive(false);   // ✅ Inactivo al inicio
+        
+        // ✅ AGREGAR COLISIONES Y OVERLAPS INMEDIATAMENTE
+        if (this.platforms) {
+            this.physics.add.collider(this.motocle, this.platforms);
+            console.log('✅ Collider Motocle-Plataformas agregado');
+        }
+        if (this.coins) {
+            this.physics.add.overlap(this.motocle, this.coins, this.collectCoin, null, this);
+            console.log('✅ Overlap Motocle-Monedas agregado');
+        }
+        if (this.enemies) {
+            this.physics.add.overlap(this.motocle, this.enemies, this.hitMotocle, null, this);
+            console.log('✅ Overlap Motocle-Enemigos agregado');
+        }
+        
+        console.log('Motocle creado en Nivel 2 at:', this.motocle.x, this.motocle.y, 'visible:', this.motocle.visible);
+        
+        // Eliminar cualquier Motocle extra
+        this.children.list.filter(child => child !== this.motocle && child.texture && (child.texture.key === 'motocle_run' || child.texture.key === 'motocle_quieto2')).forEach(extra => {
+            console.log('Destruyendo Motocle extra:', extra);
+            extra.destroy();
+        });
+        
+        this.motocleDialogBubble = null;
+        
+        // Crear animaciones si no existen
+        if (!this.anims.exists('motocle_run_anim')) {
+            this.anims.create({
+                key: 'motocle_run_anim',
+                frames: this.anims.generateFrameNumbers('motocle_run', { start: 0, end: 2 }),
+                frameRate: 6,
+                repeat: -1
+            });
+        }
+        if (!this.anims.exists('motocle_quieto2_anim')) {
+            this.anims.create({
+                key: 'motocle_quieto2_anim',
+                frames: [ { key: 'motocle_quieto2', frame: 0 } ],
+                frameRate: 1,
+                repeat: -1
+            });
+        }
+        
+        // ✅ ENTRADA DE MOTOCLE CON DELAY (igual que GameScene)
+        this.motocleEntryTimer = this.time.delayedCall(2000, () => {
+            if (!this.scene.isActive()) return;
+            console.log('Motocle Level2: DelayedCall ejecutado');
+            if (!this.motocleHasEntered) {
+                console.log('Motocle Level2: Entrando');
+                this.motocleHasEntered = true;
+                this.motocle.setVisible(true);
+                this.motocle.setActive(true);
+                this.motocle.x = -200;
+                this.motocle.play('motocle_run_anim');
+                
+                // Tween de entrada
+                if (!this.motocleEntryTween) {
+                    this.motocleEntryTween = this.tweens.add({
+                        targets: this.motocle,
+                        x: 320,
+                        duration: 3000,
+                        ease: 'Power1',
+                        onComplete: () => {
+                            if (!this.scene.isActive()) return;
+                            if (!this.motocleTweenCompleted) {
+                                this.motocleTweenCompleted = true;
+                                console.log('Motocle Level2: Tween completado');
+                                this.motocle.play('motocle_quieto2_anim');
+                                this.motocle.setScale(MOTOCLE_SCALE);
+                                
+                                // Mostrar secuencia de mensajes
+                                if (!this.motocleGreetingShown) {
+                                    this.motocleGreetingShown = true;
+                                    try { 
+                                        this.showMotocleSequence(() => {
+                                            console.log('Secuencia de Motocle Nivel 2 completada');
+                                            // ✅ YA NO HAY CONVERSACIÓN ADICIONAL
+                                        }); 
+                                    } catch (e) { 
+                                        console.log('Error mostrando secuencia de Motocle Nivel2:', e); 
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        });
+    }
+    
+    // ✅ MÉTODO PARA DESTRUIR DIÁLOGOS DE MOTOCLE
+    destroyMotocleDialog() {
+        if (this.motocleDialogBubble) {
+            if (this.motocleDialogBubble.floatTween) {
+                this.motocleDialogBubble.floatTween.stop();
+                this.motocleDialogBubble.floatTween.remove();
+            }
+            if (this.motocleDialogBubble.container) {
+                this.motocleDialogBubble.container.destroy();
+            }
+            if (this.motocleDialogBubble.pointer) {
+                this.motocleDialogBubble.pointer.destroy();
+            }
+            this.motocleDialogBubble = null;
+        }
+    }
+    
+    // ✅ MÉTODO SHOWMOTOCLESEQUENCE IGUAL QUE GAMESCENE
+    showMotocleSequence(doneCallback) {
+        if (!this.motocle || !this.motocle.active) return;
+        
+        const messages = [
+            { text: 'Tengan cuidado chavos, hay mucho reprobado por aqui', duration: 3800 },
+            { text: 'Terminando esto vamos por pizza', duration: 3000 },
+            { text: '¡Vamos equipo!', duration: 2500 }
+        ];
+        
+        let idx = 0;
+        
+        const showNext = () => {
+            if (!this.scene.isActive()) return;
+            if (idx >= messages.length) {
+                // Secuencia terminada
+                try { if (typeof doneCallback === 'function') doneCallback(); } catch (e) {}
+                return;
+            }
+            
+            const msg = messages[idx];
+            
+            // Destruir el cuadro de diálogo anterior
+            if (this.motocleDialogBubble) {
+                if (this.motocleDialogBubble.floatTween) {
+                    this.motocleDialogBubble.floatTween.stop();
+                    this.motocleDialogBubble.floatTween.remove();
+                }
+                if (this.motocleDialogBubble.container) {
+                    this.motocleDialogBubble.container.destroy();
+                }
+                if (this.motocleDialogBubble.pointer) {
+                    this.motocleDialogBubble.pointer.destroy();
+                }
+                this.motocleDialogBubble = null;
+            }
+            
+            const mx = this.motocle.x;
+            const my = this.motocle.y - this.motocle.displayHeight;
+            
+            // ✅ MEJORAR DISEÑO DEL GLOBO
+            const padding = 22;  // Más padding para mejor apariencia
+            const maxWidth = 320;  // Un poco más ancho
+            
+            const tempText = this.add.text(0, 0, msg.text, {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '16px',  // ✅ Texto más grande
+                color: '#1a1a1a',  // ✅ Color más oscuro para mejor contraste
+                align: 'center',
+                fontStyle: 'bold',  // ✅ Texto en negrita
+                wordWrap: { width: maxWidth - padding * 2 },
+                lineSpacing: 6  // ✅ Más espacio entre líneas
+            }).setOrigin(0.5);
+            
+            const bounds = tempText.getBounds();
+            const textWidth = bounds.width;
+            const textHeight = bounds.height;
+            tempText.destroy();
+            
+            const boxWidth = Math.min(textWidth + padding * 2, maxWidth);
+            const boxHeight = textHeight + padding * 2;
+            const boxY = my - boxHeight - 25;  // ✅ Más separación del personaje
+            
+            const container = this.add.container(mx, boxY).setDepth(2000);
+            
+            // ✅ Fondo del cuadro mejorado con sombra más visible
+            const bg = this.add.graphics();
+            bg.fillStyle(0x000000, 0.3);  // ✅ Sombra más oscura
+            bg.fillRoundedRect(-boxWidth/2 + 4, -boxHeight/2 + 4, boxWidth, boxHeight, 15);  // ✅ Bordes más redondeados
+            bg.fillStyle(0xffffff, 1);
+            bg.fillRoundedRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight, 15);
+            
+            // ✅ Borde más grueso y visible
+            const border = this.add.graphics();
+            border.lineStyle(4, 0x3b82f6, 1);  // ✅ Azul más moderno y más grueso
+            border.strokeRoundedRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight, 15);
+            
+            const text = this.add.text(0, 0, msg.text, {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '16px',  // ✅ Texto más grande
+                color: '#1a1a1a',  // ✅ Color más oscuro
+                align: 'center',
+                fontStyle: 'bold',  // ✅ Texto en negrita
+                wordWrap: { width: maxWidth - padding * 2 },
+                lineSpacing: 6  // ✅ Más espacio entre líneas
+            }).setOrigin(0.5);
+            
+            container.add([bg, border, text]);
+            
+            // ✅ Pointer (triángulo) mejorado y más visible
+            const pointer = this.add.graphics();
+            pointer.setPosition(mx, boxY + boxHeight/2);
+            pointer.fillStyle(0x000000, 0.3);  // ✅ Sombra más oscura
+            pointer.fillTriangle(-12, 2, 12, 2, 0, 16);  // ✅ Triángulo más grande
+            pointer.fillStyle(0xffffff, 1);
+            pointer.fillTriangle(-12, 0, 12, 0, 0, 14);  // ✅ Triángulo más grande
+            pointer.lineStyle(4, 0x3b82f6, 1);  // ✅ Borde más grueso
+            pointer.beginPath();
+            pointer.moveTo(-12, 0);
+            pointer.lineTo(0, 14);
+            pointer.lineTo(12, 0);
+            pointer.strokePath();
+            pointer.setDepth(2000);
+            
+            // Animación de entrada
+            container.setAlpha(0).setScale(0.85);
+            pointer.setAlpha(0).setScale(0.85);
+            
+            this.tweens.add({
+                targets: [container, pointer],
+                alpha: 1,
+                scale: 1,
+                duration: 350,
+                ease: 'Back.easeOut'
+            });
+            
+            // Animación de flotación
+            const floatTween = this.tweens.add({
+                targets: [container, pointer],
+                y: '+=2',
+                duration: 1800,
+                ease: 'Sine.easeInOut',
+                yoyo: true,
+                repeat: -1
+            });
+            
+            // ✅ Guardar información del globo
+            this.motocleDialogBubble = { container, pointer, floatTween, boxHeight };
+            
+            // Configurar scroll
+            try {
+                container.setScrollFactor(1);
+                pointer.setScrollFactor(1);
+                if (this.uiCamera && this.uiCamera.ignore) {
+                    this.uiCamera.ignore([container, pointer]);
+                }
+            } catch (e) {}
+            
+            idx++;
+            
+            // Programar el siguiente mensaje
+            this.time.delayedCall(msg.duration, () => {
+                if (!this.scene.isActive()) return;
+                
+                // Detener flotación
+                if (floatTween) {
+                    floatTween.stop();
+                    floatTween.remove();
+                }
+                
+                // Animación de salida
+                this.tweens.add({
+                    targets: [container, pointer],
+                    alpha: 0,
+                    scale: 0.85,
+                    duration: 250,
+                    ease: 'Power2',
+                    onComplete: () => {
+                        container.destroy();
+                        pointer.destroy();
+                        this.motocleDialogBubble = null;
+                        
+                        // Mostrar el siguiente mensaje o finalizar
+                        if (idx < messages.length) {
+                            showNext();
+                        } else {
+                            try { if (typeof doneCallback === 'function') doneCallback(); } catch (e) {}
+                        }
+                    }
+                });
+            });
+        };
+        
+        showNext();
+    }
 
-        // entrada corriendo (si existe animación de correr)
-        try { if (this.anims.exists('motocle_run_anim')) this.motocle.play('motocle_run_anim'); } catch(e) {}
+    // ❌ YA NO SE USA - Conversación eliminada (solo Motocle habla en showMotocleSequence)
+    // showPlayerMotocleConversation() { ... } - ELIMINADO
 
-        // Tween de entrada (llega a la posición cercana al objetivo actual)
-        const initialTarget = this.getMotocleTarget();
-        const initialTargetX = (initialTarget && initialTarget.x) ? Math.max(120, initialTarget.x - 120) : 320;
-        // Tween de entrada: hacerlo un poco más rápido para que no parezca lento
-        this.tweens.add({ targets: this.motocle, x: initialTargetX, duration: 1600, ease: 'Power1', onComplete: () => {
-            try { if (this.anims.exists('motocle_quieto2_anim')) this.motocle.play('motocle_quieto2_anim'); } catch(e) {}
-            console.log('Motocle ha entrado en Nivel 2 como compañero bot');
-            // Mostrar pequeños diálogos que siguen a Motocle (en mundo, no UI)
-            try { this.showMotocleLevel2Sequence(); } catch (e) { console.log('Error mostrando diálogo Motocle Nivel2:', e); }
-        }});
-
-        // Vida sencilla para Motocle (se puede ampliar luego)
-        this.motocle.health = 200;
-        this.motocle.isInvulnerable = false;
+    // ELIMINAR LOS MÉTODOS ANTIGUOS createMotocle, createMotocleActual, showMotocleLevel2Sequence
+    // Ya no son necesarios
+    
+    // ❌ MÉTODO OBSOLETO - Ahora usamos createMotocleLevel2()
+    createMotocle() {
+        console.log("⚠️ createMotocle() obsoleto - usar createMotocleLevel2()");
+        return; // No hacer nada
+    }
+    
+    // ❌ MÉTODO OBSOLETO - Ahora usamos createMotocleLevel2()
+    // ❌ MÉTODO OBSOLETO - Ahora usamos createMotocleLevel2()
+    createMotocle() {
+        console.log("⚠️ createMotocle() obsoleto - usar createMotocleLevel2()");
+        return; // No hacer nada
+    }
+    
+    // ❌ MÉTODO OBSOLETO - Ahora usamos createMotocleLevel2()  
+    createMotocleActual() {
+        console.log("⚠️ createMotocleActual() obsoleto - usar createMotocleLevel2()");
+        return; // No hacer nada
     }
 
     // Devuelve la entidad objetivo actual para Motocle según prioridad: player > companion
@@ -893,46 +1274,58 @@ setupPhysics() {
     // Mostrar secuencia simple de mensajes sobre Motocle en Nivel 2
     showMotocleLevel2Sequence() {
         if (!this.motocle || !this.motocle.active) return;
-        // Evitar ejecutar la misma secuencia múltiples veces de forma concurrente
-        if (this._motocleLevel2DialogActive) return;
+        
+        // Evitar ejecutar la misma secuencia múltiples veces
+        if (this._motocleLevel2DialogActive) {
+            console.log("🗨️ Ya hay una secuencia de diálogo activa, ignorando nueva solicitud");
+            return;
+        }
+        
         this._motocleLevel2DialogActive = true;
+        
+        // Reducir la duración entre mensajes para que sea más dinámico
         const messages = [
-            { text: 'Tengan cuidado chavos, hay mucho reprobado por aqui', duration: 3800 },
-            { text: 'Terminando esto vamos por pizza', duration: 3000 }
+            { text: 'Tengan cuidado chavos, hay mucho reprobado por aqui', duration: 3000 },
+            { text: 'Terminando esto vamos por pizza', duration: 2500 }
         ];
 
         let idx = 0;
 
         const showNext = () => {
-            if (!this.scene.isActive()) { this._motocleLevel2DialogActive = false; return; }
-            if (idx >= messages.length) { this._motocleLevel2DialogActive = false; return; }
+            if (!this.scene.isActive()) { 
+                this._motocleLevel2DialogActive = false; 
+                return; 
+            }
+            if (idx >= messages.length) { 
+                this._motocleLevel2DialogActive = false; 
+                console.log("✅ Secuencia de diálogos de Motocle completada");
+                return; 
+            }
+            
+            // ✅ VERIFICAR QUE MOTOCLE SIGUE EXISTIENDO
+            if (!this.motocle || !this.motocle.active) {
+                console.log("⚠️ Motocle ya no existe - cancelando diálogos");
+                this._motocleLevel2DialogActive = false;
+                return;
+            }
+            
+            console.log(`💬 Mostrando mensaje ${idx + 1}/${messages.length}: "${messages[idx].text}"`);
 
-            // destruir diálogo anterior si existe
+            // Destruir el cuadro de diálogo anterior (igual que GameScene)
             if (this.motocleDialogBubble) {
-                try { if (this.motocleDialogBubble.floatTween) { this.motocleDialogBubble.floatTween.stop(); this.motocleDialogBubble.floatTween.remove(); } } catch(e) {}
-                try { this.motocleDialogBubble.container.destroy(); } catch(e) {}
-                try { this.motocleDialogBubble.pointer.destroy(); } catch(e) {}
+                console.log("🧹 Destruyendo globo anterior antes de crear nuevo");
+                if (this.motocleDialogBubble.floatTween) {
+                    this.motocleDialogBubble.floatTween.stop();
+                    this.motocleDialogBubble.floatTween.remove();
+                }
+                if (this.motocleDialogBubble.container) {
+                    this.motocleDialogBubble.container.destroy();
+                }
+                if (this.motocleDialogBubble.pointer) {
+                    this.motocleDialogBubble.pointer.destroy();
+                }
                 this.motocleDialogBubble = null;
             }
-
-            // Limpieza preventiva: destruir cualquier contenedor/graphics con texto y profundidad de diálogo
-            try {
-                this.children.list.slice().forEach(ch => {
-                    if (!ch) return;
-                    // Contenedores que contienen Text y con depth alrededor de nuestros globos (>=1500 && <=2500)
-                    if (ch.type === 'Container' && ch.depth >= 1500 && ch.depth <= 2500) {
-                        if (ch.list && ch.list.some(el => el && el.type === 'Text')) {
-                            console.log('Level2: eliminando contenedor residual de diálogo:', ch);
-                            try { ch.destroy(); } catch (e) {}
-                        }
-                    }
-                    // Graphics independientes que podrían ser punteros sueltos
-                    if (ch && ch.type === 'Graphics' && ch.depth >= 1500 && ch.depth <= 2500) {
-                        console.log('Level2: eliminando graphics residual de diálogo:', ch);
-                        try { ch.destroy(); } catch (e) {}
-                    }
-                });
-            } catch(e) {}
 
             const msg = messages[idx];
             const mx = this.motocle.x;
@@ -950,33 +1343,42 @@ setupPhysics() {
             const boxHeight = textHeight + padding * 2;
             const boxY = my - boxHeight - 15;
 
-            const container = this.add.container(mx, boxY).setDepth(2000);
-            // Fondo y borde
+            // Calculamos una mejor posición para el globo, más cercana a Motocle
+            const adjustedY = boxY + (this.motocle.displayHeight * 0.3); // Ajustamos para que esté más cerca
+            const container = this.add.container(mx, adjustedY).setDepth(2000);
+            
+            // Fondo y borde mejorados
             const bg = this.add.graphics();
-            bg.fillStyle(0x000000, 0.15);
-            bg.fillRoundedRect(-boxWidth/2 + 2, -boxHeight/2 + 2, boxWidth, boxHeight, 12);
-            bg.fillStyle(0xffffff, 1);
+            // Sombra más suave
+            bg.fillStyle(0x000000, 0.12);
+            bg.fillRoundedRect(-boxWidth/2 + 3, -boxHeight/2 + 3, boxWidth, boxHeight, 12);
+            // Fondo más claro
+            bg.fillStyle(0xffffff, 0.95);
             bg.fillRoundedRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight, 12);
             const border = this.add.graphics();
-            border.lineStyle(3, 0x4a90e2, 1);
+            // Borde más delgado y suave
+            border.lineStyle(2, 0x4a90e2, 0.8);
             border.strokeRoundedRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight, 12);
 
             const text = this.add.text(0, 0, msg.text, { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#2c3e50', align: 'center', wordWrap: { width: maxWidth - padding * 2 }, lineSpacing: 4 }).setOrigin(0.5, 0.5);
 
             container.add([bg, border, text]);
 
-            // pointer
+            // Puntero mejorado con mejor posicionamiento
             const pointer = this.add.graphics();
-            pointer.setPosition(mx, boxY + boxHeight/2);
-            pointer.fillStyle(0x000000, 0.15);
-            pointer.fillTriangle(-10, 2, 10, 2, 0, 14);
-            pointer.fillStyle(0xffffff, 1);
-            pointer.fillTriangle(-10, 0, 10, 0, 0, 12);
-            pointer.lineStyle(3, 0x4a90e2, 1);
+            pointer.setPosition(mx, adjustedY + boxHeight/2);
+            // Sombra del puntero más suave
+            pointer.fillStyle(0x000000, 0.12);
+            pointer.fillTriangle(-8, 2, 8, 2, 0, 10);
+            // Puntero más pequeño y delicado
+            pointer.fillStyle(0xffffff, 0.95);
+            pointer.fillTriangle(-8, 0, 8, 0, 0, 8);
+            // Borde más fino
+            pointer.lineStyle(2, 0x4a90e2, 0.8);
             pointer.beginPath();
-            pointer.moveTo(-10, 0);
-            pointer.lineTo(0, 12);
-            pointer.lineTo(10, 0);
+            pointer.moveTo(-8, 0);
+            pointer.lineTo(0, 8);
+            pointer.lineTo(8, 0);
             pointer.strokePath();
             pointer.setDepth(2000);
 
@@ -994,15 +1396,25 @@ setupPhysics() {
             // programar siguiente mensaje
             idx++;
             this.time.delayedCall(msg.duration, () => {
-                if (!this.scene.isActive()) { this._motocleLevel2DialogActive = false; return; }
+                if (!this.scene.isActive()) { 
+                    console.log("⚠️ Escena ya no activa - cancelando animación de salida");
+                    this._motocleLevel2DialogActive = false; 
+                    return; 
+                }
+                
+                console.log(`🎭 Animando salida del mensaje ${idx}/${messages.length}`);
+                
                 try { floatTween.stop(); floatTween.remove(); } catch(e) {}
                 this.tweens.add({ targets: [container, pointer], alpha: 0, scale: 0.85, duration: 250, ease: 'Power2', onComplete: () => {
+                    console.log(`🗑️ Destruyendo elementos del mensaje ${idx}/${messages.length}`);
                     try { container.destroy(); pointer.destroy(); } catch(e) {}
                     this.motocleDialogBubble = null;
                     if (idx < messages.length) {
+                        console.log(`➡️ Avanzando al siguiente mensaje (${idx + 1}/${messages.length})`);
                         showNext();
                     } else {
                         // Secuencia terminada
+                        console.log("✅ Todos los mensajes mostrados - secuencia finalizada");
                         this._motocleLevel2DialogActive = false;
                     }
                 } });
