@@ -10,6 +10,26 @@ export default class EnemyManager {
         this.scene = scene;
     }
 
+    // ✅ MÉTODO HELPER PARA REPRODUCIR ANIMACIONES DE FORMA SEGURA
+    safePlayAnimation(enemy, animKey, repeat = false) {
+        if (!enemy || !enemy.active || !enemy.anims) {
+            return false;
+        }
+        
+        try {
+            if (this.scene.anims.exists(animKey)) {
+                enemy.anims.play(animKey, repeat);
+                return true;
+            } else {
+                console.warn(`⚠️ Animación '${animKey}' no existe para ${enemy.enemyType || 'enemy'}`);
+                return false;
+            }
+        } catch (e) {
+            console.error(`❌ Error reproduciendo animación '${animKey}':`, e);
+            return false;
+        }
+    }
+
     createEnemies() {
         this.scene.enemies = this.scene.physics.add.group();
         
@@ -71,6 +91,10 @@ export default class EnemyManager {
                 this.updateBlueBird(enemy);
             } else if (enemy.enemyType === 'skull') {
                 this.updateSkull(enemy);
+            } else if (enemy.enemyType === 'skeleton') {
+                // ✅ Skeleton - ya tiene su propio sistema de patrulla en Level3Scene
+                // No necesita actualización adicional aquí
+                return;
             } else if (enemy.enemyType === 'angrypig') {
                 this.updateAngryPig(enemy);
             } else if (enemy.enemyType === 'gallina') {
@@ -458,14 +482,12 @@ export default class EnemyManager {
         });
 
         if (enemy.enemyType === 'rino' && this.scene.anims.exists('rino-hit')) {
-            enemy.anims.play('rino-hit');
+            this.safePlayAnimation(enemy, 'rino-hit');
             this.scene.time.delayedCall(400, () => {
-                if (enemy && enemy.active && this.scene.anims.exists('rino-idle')) {
-                    enemy.anims.play('rino-idle');
-                }
+                this.safePlayAnimation(enemy, 'rino-idle');
             });
         } else if (enemy.enemyType === 'bluebird' && this.scene.anims.exists('bluebird-hit')) {
-            enemy.anims.play('bluebird-hit');
+            this.safePlayAnimation(enemy, 'bluebird-hit');
             // El pájaro se tambalea al ser golpeado
             const knockbackX = enemy.body.velocity.x * -0.5;
             const knockbackY = enemy.body.velocity.y + Phaser.Math.Between(-50, 50);
@@ -478,12 +500,10 @@ export default class EnemyManager {
             }
             
             this.scene.time.delayedCall(300, () => {
-                if (enemy && enemy.active && this.scene.anims.exists('bluebird-flying')) {
-                    enemy.anims.play('bluebird-flying');
-                }
+                this.safePlayAnimation(enemy, 'bluebird-flying');
             });
         } else if (enemy.enemyType === 'skull' && this.scene.anims.exists('skull-hit')) {
-            enemy.anims.play('skull-hit');
+            this.safePlayAnimation(enemy, 'skull-hit');
             // El skull retrocede y se tambalea
             enemy.setVelocity(
                 enemy.body.velocity.x * -0.7,
@@ -494,17 +514,31 @@ export default class EnemyManager {
             this.createSkullAttackEffect(enemy, 'red');
             
             this.scene.time.delayedCall(400, () => {
-                if (enemy && enemy.active && this.scene.anims.exists('skull-idle1')) {
-                    enemy.anims.play('skull-idle1');
-                }
+                this.safePlayAnimation(enemy, 'skull-idle1');
+            });
+        } else if (enemy.enemyType === 'skeleton') {
+            // ✅ SKELETON - Solo efectos visuales, sin animaciones de hit
+            console.log('💀 Skeleton golpeado');
+            
+            // Retrocede al ser golpeado
+            const knockbackX = enemy.body.velocity.x * -1;
+            const knockbackY = -80;
+            enemy.setVelocity(knockbackX, knockbackY);
+            
+            // Flip según dirección del retroceso
+            if (knockbackX !== 0) {
+                enemy.setFlipX(knockbackX > 0);
+            }
+            
+            // Continuar con la animación de caminar si existe
+            this.scene.time.delayedCall(300, () => {
+                this.safePlayAnimation(enemy, 'skeleton_walk_anim', true);
             });
         } else if (enemy.enemyType === 'angrypig') {
             // AngryPig tiene dos animaciones de hit diferentes
             const hitAnim = Math.random() < 0.5 ? 'angrypig-hit1' : 'angrypig-hit2';
             
-            if (this.scene.anims.exists(hitAnim)) {
-                enemy.anims.play(hitAnim);
-            }
+            this.safePlayAnimation(enemy, hitAnim);
             
             // El cerdo se vuelve MÁS agresivo cuando es golpeado
             enemy.isAngry = true;
@@ -770,6 +804,21 @@ export default class EnemyManager {
             
             // ✅ SHAKE DE CÁMARA
             this.scene.cameras.main.shake(150, 0.01);
+            
+            // ✅ EFECTO VISUAL EN EL ENEMIGO (solo si tiene animación)
+            if (enemy.anims && enemy.texture && enemy.texture.key) {
+                try {
+                    // Hacer que el enemigo parpadee
+                    enemy.setTint(0xffff00); // Amarillo por 100ms
+                    this.scene.time.delayedCall(100, () => {
+                        if (enemy && enemy.active) {
+                            enemy.clearTint();
+                        }
+                    });
+                } catch (e) {
+                    // Ignorar error si no se puede aplicar tint
+                }
+            }
             
             // ✅ QUITAR INVULNERABILIDAD DESPUÉS DE 1.5 SEGUNDOS
             this.scene.time.delayedCall(1500, () => {
