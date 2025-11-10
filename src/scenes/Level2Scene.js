@@ -26,6 +26,9 @@ class Level2Scene extends Phaser.Scene {
         this.companionMaxHealth = 100;  // ✅ CAMBIAR A 100
         this.companionHealth = 100;     // ✅ CAMBIAR A 100
         this.isGamePaused = false;
+        // ✅ BANDERAS PARA EVITAR DUPLICADOS DE MENSAJES
+        this.levelMessageShown = false;
+        this.levelCompleteShown = false;
     }
 
     init(data) {
@@ -499,6 +502,13 @@ class Level2Scene extends Phaser.Scene {
     }
 
     showLevelMessage() {
+        // ✅ EVITAR DUPLICADOS - Solo mostrar una vez
+        if (this.levelMessageShown) {
+            console.log("⚠️ Mensaje de nivel ya mostrado - ignorando duplicado");
+            return;
+        }
+        this.levelMessageShown = true;
+        
         const levelText = this.add.text(400, 200, 'NIVEL 2', {
             font: '48px Arial',
             fill: '#FFD700',
@@ -512,6 +522,11 @@ class Level2Scene extends Phaser.Scene {
             stroke: '#000000',
             strokeThickness: 2
         }).setOrigin(0.5).setScrollFactor(0).setDepth(3000);
+        
+        // ✅ ASEGURAR QUE LOS TEXTOS SE IGNOREN EN LA CÁMARA DE UI
+        if (this.uiCamera) {
+            this.uiCamera.ignore([levelText, subText]);
+        }
         
         // Animación de entrada
         this.tweens.add({
@@ -1532,6 +1547,13 @@ setupPhysics() {
 
     // En Level2Scene.js - modificar el método levelComplete()
 levelComplete() {
+    // ✅ EVITAR DUPLICADOS - Solo ejecutar una vez
+    if (this.levelCompleteShown) {
+        console.log("⚠️ Mensaje de completado ya mostrado - ignorando duplicado");
+        return;
+    }
+    this.levelCompleteShown = true;
+    
     console.log("🎉 ¡Nivel 2 completado! Avanzando al Nivel 3...");
     
     this.physics.pause();
@@ -1578,6 +1600,11 @@ levelComplete() {
         }
     ).setOrigin(0.5).setDepth(2000).setScrollFactor(0);
 
+    // ✅ ASEGURAR QUE LOS TEXTOS SE IGNOREN EN LA CÁMARA DE UI
+    if (this.uiCamera) {
+        this.uiCamera.ignore([completionText, nextLevelText, continueText]);
+    }
+
     // ✅ ANIMACIÓN DEL TEXTO
     this.tweens.add({
         targets: [completionText, nextLevelText],
@@ -1598,11 +1625,22 @@ levelComplete() {
         ease: 'Sine.easeInOut'
     });
 
-    // ✅ FUNCIÓN PARA AVANZAR AL NIVEL 3
+    // ✅ FUNCIÓN PARA AVANZAR AL NIVEL 3 (CON PROTECCIÓN CONTRA MÚLTIPLES LLAMADAS)
     const goToLevel3 = () => {
+        if (this._advancingToLevel3) {
+            console.log("⚠️ Ya se está avanzando al nivel 3 - ignorando");
+            return;
+        }
+        this._advancingToLevel3 = true;
+        
         // Remover los listeners para evitar múltiples activaciones
         this.input.keyboard.off('keydown-SPACE', spaceHandler);
         this.input.off('pointerdown', clickHandler);
+        
+        // Cancelar timer automático si existe
+        if (this.autoAdvanceTimer) {
+            this.autoAdvanceTimer.remove();
+        }
         
         console.log("🚀 Avanzando al Nivel 3...");
         
@@ -1639,9 +1677,9 @@ levelComplete() {
         goToLevel3();
     };
 
-    // ✅ AGREGAR LISTENERS DE ESPACIO Y CLICK
-    this.input.keyboard.on('keydown-SPACE', spaceHandler);
-    this.input.on('pointerdown', clickHandler);
+    // ✅ AGREGAR LISTENERS DE ESPACIO Y CLICK (USAR .once PARA MAYOR SEGURIDAD)
+    this.input.keyboard.once('keydown-SPACE', spaceHandler);
+    this.input.once('pointerdown', clickHandler);
 
     // ✅ TRANSICIÓN AUTOMÁTICA DESPUÉS DE 8 SEGUNDOS (SI NO SE PRESIONA ESPACIO)
     this.autoAdvanceTimer = this.time.delayedCall(8000, () => {

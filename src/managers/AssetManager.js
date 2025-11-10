@@ -53,6 +53,10 @@ export default class AssetManager {
         this.scene.load.spritesheet('angrypig-hit1', 'assets/animales/AngryPig/Hit 1 (36x30).png', { frameWidth: 36, frameHeight: 30 });
         this.scene.load.spritesheet('angrypig-hit2', 'assets/animales/AngryPig/Hit 2 (36x30).png', { frameWidth: 36, frameHeight: 30 });
         
+        // === GATO (ANIMAL NEUTRAL QUE SOLO CAMINA) ===
+        this.scene.load.spritesheet('cat-walk', 'assets/animales/cat/WALK.png', { frameWidth: 80, frameHeight: 64 });
+        this.scene.load.spritesheet('cat-idle', 'assets/animales/cat/IDLE.png', { frameWidth: 80, frameHeight: 64 });
+        
         // === MOTOCLE ===
     // La carga de Motocle se realiza en GameScene.js para evitar duplicados
         
@@ -330,6 +334,25 @@ export default class AssetManager {
                     frames: anims.generateFrameNumbers('angrypig-hit2', { start: 0, end: 4 }),
                     frameRate: 12,
                     repeat: 0
+                });
+            }
+            
+            // === CAT ANIMATIONS (ANIMAL NEUTRAL) ===
+            if (this.scene.textures.exists('cat-walk')) {
+                anims.create({
+                    key: 'cat-walk',
+                    frames: anims.generateFrameNumbers('cat-walk', { start: 0, end: 7 }),
+                    frameRate: 8,
+                    repeat: -1
+                });
+            }
+
+            if (this.scene.textures.exists('cat-idle')) {
+                anims.create({
+                    key: 'cat-idle',
+                    frames: anims.generateFrameNumbers('cat-idle', { start: 0, end: 7 }),
+                    frameRate: 6,
+                    repeat: -1
                 });
             }
             

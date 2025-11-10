@@ -229,11 +229,7 @@ export default class MenuScene extends Phaser.Scene {
     // 🟣 Botones con borde luminoso y reflejo
     createButtons(width) {
         const buttons = [
-            { y: 270, text: 'INICIAR JUEGO', color: 0x9333ea, hover: 0xa855f7, action: 'start' },
-            { y: 340, text: 'HISTORIA', color: 0x06b6d4, hover: 0x22d3ee, action: 'story' },
-            { y: 410, text: 'LOGROS', color: 0xf97316, hover: 0xfb923c, action: 'achievements' },
-            { y: 480, text: 'PUNTUACIONES', color: 0x0ea5e9, hover: 0x38bdf8, action: 'scores' },
-            { y: 550, text: 'SALIR', color: 0xef4444, hover: 0xf87171, action: 'exit' }
+            { y: 270, text: '🎮 INICIAR JUEGO', color: 0x9333ea, hover: 0xa855f7, action: 'start' }
         ];
 
         buttons.forEach(b =>
@@ -294,8 +290,8 @@ export default class MenuScene extends Phaser.Scene {
                 onComplete: () => {
                     if (action === 'start') this.startGame();
                     else if (action === 'story') this.showStory();
-                    else if (action === 'achievements') this.showMessage('LOGROS', '¡Próximamente!', '#f97316');
-                    else if (action === 'scores') this.showMessage('PUNTUACIONES', '¡Próximamente!', '#0ea5e9');
+                    else if (action === 'credits') this.showCredits();
+                    else if (action === 'levels') this.showLevelSelector();
                     else if (action === 'exit') this.exitGame();
                 }
             });
@@ -335,6 +331,161 @@ export default class MenuScene extends Phaser.Scene {
 
     exitGame() {
         this.showMessage('¡Gracias por jugar!', 'Nos vemos pronto 🥷', '#a78bfa');
+    }
+
+    // ✅ NUEVO: Mostrar créditos
+    showCredits() {
+        const { width, height } = this.sys.game.config;
+        const c = this.add.container(width/2, height/2).setDepth(3000);
+        
+        const bg = this.add.graphics();
+        bg.fillStyle(0x0f172a, 0.95);
+        bg.fillRoundedRect(-300, -220, 600, 440, 20);
+        bg.lineStyle(3, 0xf97316, 0.8);
+        bg.strokeRoundedRect(-300, -220, 600, 440, 20);
+
+        const title = this.add.text(0, -180, '🎮 CRÉDITOS', { 
+            fontSize: '32px', 
+            color: '#f97316', 
+            fontStyle: 'bold' 
+        }).setOrigin(0.5);
+        
+        const credits = this.add.text(0, -80, 
+            '🏫 Universidad Tecnológica del\nTec de Monterrey, Campus\n\n' +
+            '👨‍💻 Desarrollado por:\nEquipo UTTECAM\n\n' +
+            '🎨 Arte y Diseño:\nAssets de Pixel Frog\n\n' +
+            '🎵 Música y Efectos:\nComunidad Open Source\n\n' +
+            '⭐ Motocle:\n¡El verdadero héroe!',
+            { 
+                fontSize: '16px', 
+                color: '#e2e8f0',
+                align: 'center',
+                lineSpacing: 4
+            }
+        ).setOrigin(0.5);
+        
+        const hint = this.add.text(0, 200, 'Click para cerrar', { 
+            fontSize: '14px', 
+            color: '#64748b' 
+        }).setOrigin(0.5);
+
+        c.add([bg, title, credits, hint]);
+        c.setAlpha(0).setScale(0.8);
+        
+        this.tweens.add({ 
+            targets: c, 
+            alpha: 1, 
+            scale: 1, 
+            duration: 400, 
+            ease: 'Back.easeOut' 
+        });
+
+        c.setInteractive(new Phaser.Geom.Rectangle(-300, -220, 600, 440), Phaser.Geom.Rectangle.Contains);
+        c.on('pointerdown', () => {
+            this.tweens.add({ 
+                targets: c, 
+                alpha: 0, 
+                scale: 0.8, 
+                duration: 200, 
+                onComplete: () => c.destroy() 
+            });
+        });
+    }
+
+    // ✅ NUEVO: Selector de niveles
+    showLevelSelector() {
+        const { width, height } = this.sys.game.config;
+        const c = this.add.container(width/2, height/2).setDepth(3000);
+        
+        const bg = this.add.graphics();
+        bg.fillStyle(0x0f172a, 0.95);
+        bg.fillRoundedRect(-280, -200, 560, 400, 20);
+        bg.lineStyle(3, 0x0ea5e9, 0.8);
+        bg.strokeRoundedRect(-280, -200, 560, 400, 20);
+
+        const title = this.add.text(0, -160, '🎯 SELECCIONA TU NIVEL', { 
+            fontSize: '28px', 
+            color: '#0ea5e9', 
+            fontStyle: 'bold' 
+        }).setOrigin(0.5);
+        
+        // Botones de niveles
+        const levels = [
+            { y: -80, text: '🌳 NIVEL 1: El Bosque', scene: 'GameScene', color: 0x10b981 },
+            { y: -10, text: '🌙 NIVEL 2: La Noche', scene: 'Level2Scene', color: 0x8b5cf6 },
+            { y: 60, text: '🏰 NIVEL 3: La Fortaleza', scene: 'Level3Scene', color: 0xf59e0b }
+        ];
+        
+        levels.forEach(level => {
+            const btn = this.add.rectangle(0, level.y, 450, 50, level.color, 1);
+            btn.setStrokeStyle(2, 0xffffff, 0.3);
+            const txt = this.add.text(0, level.y, level.text, {
+                fontSize: '18px',
+                color: '#ffffff',
+                fontStyle: 'bold'
+            }).setOrigin(0.5);
+            
+            btn.setInteractive();
+            btn.on('pointerover', () => {
+                btn.setFillStyle(level.color, 0.8);
+                this.tweens.add({ targets: [btn, txt], scaleX: 1.05, scaleY: 1.05, duration: 150 });
+            });
+            btn.on('pointerout', () => {
+                btn.setFillStyle(level.color, 1);
+                this.tweens.add({ targets: [btn, txt], scaleX: 1, scaleY: 1, duration: 150 });
+            });
+            btn.on('pointerdown', () => {
+                this.tweens.add({
+                    targets: [btn, txt],
+                    scaleX: 0.95,
+                    scaleY: 0.95,
+                    duration: 100,
+                    yoyo: true,
+                    onComplete: () => {
+                        // Fade out y cambiar de escena
+                        const fade = this.add.rectangle(width/2, height/2, width, height, 0x000000, 0).setDepth(9999);
+                        this.tweens.add({
+                            targets: fade,
+                            alpha: 1,
+                            duration: 500,
+                            onComplete: () => this.scene.start(level.scene)
+                        });
+                    }
+                });
+            });
+            
+            c.add([btn, txt]);
+        });
+        
+        const hint = this.add.text(0, 170, 'Click para cerrar', { 
+            fontSize: '14px', 
+            color: '#64748b' 
+        }).setOrigin(0.5);
+
+        c.add([bg, title, hint]);
+        c.setAlpha(0).setScale(0.8);
+        
+        this.tweens.add({ 
+            targets: c, 
+            alpha: 1, 
+            scale: 1, 
+            duration: 400, 
+            ease: 'Back.easeOut' 
+        });
+
+        c.setInteractive(new Phaser.Geom.Rectangle(-280, -200, 560, 400), Phaser.Geom.Rectangle.Contains);
+        c.on('pointerdown', (pointer, localX, localY, event) => {
+            // Solo cerrar si hace click en el fondo (no en los botones)
+            if (localY > 130 || localY < -190) {
+                this.tweens.add({ 
+                    targets: c, 
+                    alpha: 0, 
+                    scale: 0.8, 
+                    duration: 200, 
+                    onComplete: () => c.destroy() 
+                });
+            }
+        });
     }
 
     showMessage(title, message, color) {
@@ -427,10 +578,10 @@ export default class MenuScene extends Phaser.Scene {
     createRunningCharacters(width, height) {
         console.log("🏃‍♂️ Creando personajes corriendo...");
         
-        // ✅ NINJA BLANCO
+        // ✅ NINJA BLANCO - PRIMERO
         let ninja;
         if (this.textures.exists('ninja-run')) {
-            ninja = this.add.sprite(-100, height - 80, 'ninja-run'); // ✅ Más arriba para no tapar botones
+            ninja = this.add.sprite(-100, height - 80, 'ninja-run');
             if (this.anims.exists('ninja-run')) {
                 ninja.play('ninja-run', true);
                 console.log("✅ Ninja corriendo con ninja-run");
@@ -445,21 +596,59 @@ export default class MenuScene extends Phaser.Scene {
         if (ninja) {
             ninja.setScale(2.5);
             ninja.setTint(0xFFFFFF); // Blanco
-            ninja.setDepth(-10); // ✅ DETRÁS de los botones
+            ninja.setDepth(-10);
             
             this.tweens.add({
                 targets: ninja,
                 x: width + 100,
-                duration: 8000,
+                duration: 9000, // Más lento
                 repeat: -1,
                 ease: 'None',
-                delay: 0
+                delay: 0 // Sale primero
             });
             
             console.log("✅ Ninja creado y animado");
         }
         
-        // ✅ AMIGO
+        // ✅ MOTOCLE - SEGUNDO (MÁS GRANDE Y DESTACADO)
+        let motocle;
+        console.log("🔍 Verificando Motocle...");
+        console.log("¿Existe motocle_run?", this.textures.exists('motocle_run'));
+        
+        if (this.textures.exists('motocle_run')) {
+            motocle = this.add.sprite(-250, height - 80, 'motocle_run');
+            if (this.anims.exists('motocle_run_anim')) {
+                motocle.play('motocle_run_anim', true);
+                console.log("✅ Motocle corriendo con motocle_run_anim");
+            }
+        } else if (this.textures.exists('motocle_quieto2')) {
+            motocle = this.add.sprite(-250, height - 80, 'motocle_quieto2');
+            if (this.anims.exists('motocle_quieto2_anim')) {
+                motocle.play('motocle_quieto2_anim', true);
+            }
+        }
+        
+        if (motocle) {
+            // ✅ MUCHO MÁS GRANDE PARA QUE SE LUZCA
+            motocle.setScale(0.35); // Mucho más grande que en el juego (0.16)
+            motocle.setDepth(50); // ✅ ADELANTE de todo para que se vea bien
+            
+            // ✅ MOVIMIENTO A TRAVÉS DE LA PANTALLA
+            this.tweens.add({
+                targets: motocle,
+                x: width + 100,
+                duration: 8000, // Velocidad media
+                repeat: -1,
+                ease: 'None',
+                delay: 4000 // Sale cuando ninja va por la mitad
+            });
+            
+            console.log("✅ Motocle creado - MÁS GRANDE y corriendo");
+        } else {
+            console.log("❌ No se pudo crear Motocle");
+        }
+        
+        // ✅ AMIGO - TERCERO (al final)
         let amigo;
         if (this.textures.exists('amigo-run')) {
             amigo = this.add.sprite(-150, height - 80, 'amigo-run');
@@ -473,7 +662,6 @@ export default class MenuScene extends Phaser.Scene {
                 amigo.play('amigo-idle', true);
             }
         } else if (ninja) {
-            // Fallback usando ninja
             amigo = this.add.sprite(-150, height - 80, 'ninja-idle');
             if (this.anims.exists('ninja-idle')) {
                 amigo.play('ninja-idle', true);
@@ -483,67 +671,30 @@ export default class MenuScene extends Phaser.Scene {
         if (amigo) {
             amigo.setScale(2.2);
             amigo.setTint(0x00AAFF); // Azul
-            amigo.setDepth(-9); // ✅ DETRÁS de los botones
+            amigo.setDepth(-9);
             
             this.tweens.add({
                 targets: amigo,
                 x: width + 100,
-                duration: 8500,
+                duration: 9500, // Más lento que todos
                 repeat: -1,
                 ease: 'None',
-                delay: 1000
+                delay: 8000 // Sale al final, cuando los demás ya pasaron
             });
             
             console.log("✅ Amigo creado y animado");
         }
         
-        // ✅ MOTOCLE - USAR LOS MISMOS NOMBRES QUE GAMESCENE
-        let motocle;
-        console.log("🔍 Verificando Motocle...");
-        console.log("¿Existe motocle_run?", this.textures.exists('motocle_run'));
-        console.log("¿Existe motocle_quieto2?", this.textures.exists('motocle_quieto2'));
-        
-        if (this.textures.exists('motocle_run')) {
-            motocle = this.add.sprite(-250, height - 100, 'motocle_run'); // ✅ Más arriba
-            if (this.anims.exists('motocle_run_anim')) {
-                motocle.play('motocle_run_anim', true);
-                console.log("✅ Motocle corriendo con motocle_run_anim");
-            }
-        } else if (this.textures.exists('motocle_quieto2')) {
-            motocle = this.add.sprite(-250, height - 100, 'motocle_quieto2');
-            if (this.anims.exists('motocle_quieto2_anim')) {
-                motocle.play('motocle_quieto2_anim', true);
-            }
-        }
-        
-        if (motocle) {
-            motocle.setScale(0.16); // ✅ USAR LA MISMA ESCALA QUE GAMESCENE
-            motocle.setTint(0xFFDD00); // Dorado
-            motocle.setDepth(-8); // ✅ DETRÁS de los botones
-            
-            this.tweens.add({
-                targets: motocle,
-                x: width + 100,
-                duration: 9000,
-                repeat: -1,
-                ease: 'None',
-                delay: 2000
-            });
-            
-            console.log("✅ Motocle creado y animado");
-        } else {
-            console.log("❌ No se pudo crear Motocle");
-        }
-        
         // ✅ LABELS IDENTIFICATIVOS
         this.createMovingLabels(width, height);
         
-        console.log("🏃‍♂️ Todos los personajes están corriendo en el menú");
+        console.log("🏃‍♂️ Todos los personajes están corriendo en el menú (SIN CHOCAR)");
     }
+
 
     // ✅ NUEVO MÉTODO: Labels que se mueven
     createMovingLabels(width, height) {
-        // Label ninja
+        // Label ninja - primero
         const ninjaLabel = this.add.text(-100, height - 50, 'NINJA', {
             fontSize: '12px',
             color: '#ffffff',
@@ -555,13 +706,31 @@ export default class MenuScene extends Phaser.Scene {
         this.tweens.add({
             targets: ninjaLabel,
             x: width + 100,
-            duration: 8000,
+            duration: 9000,
             repeat: -1,
             ease: 'None',
             delay: 0
         });
         
-        // Label amigo
+        // Label MOTOCLE - segundo (más grande y destacado)
+        const motocleLabel = this.add.text(-250, height - 50, 'MOTOCLE', {
+            fontSize: '14px',
+            color: '#FFD700',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 3
+        }).setOrigin(0.5).setDepth(51);
+        
+        this.tweens.add({
+            targets: motocleLabel,
+            x: width + 100,
+            duration: 8000,
+            repeat: -1,
+            ease: 'None',
+            delay: 4000 // Sale con Motocle
+        });
+        
+        // Label amigo - último
         const amigoLabel = this.add.text(-150, height - 50, 'AMIGO', {
             fontSize: '12px',
             color: '#00AAFF',
@@ -573,30 +742,12 @@ export default class MenuScene extends Phaser.Scene {
         this.tweens.add({
             targets: amigoLabel,
             x: width + 100,
-            duration: 8500,
+            duration: 9500,
             repeat: -1,
             ease: 'None',
-            delay: 1000
+            delay: 8000 // Sale con Amigo
         });
         
-        // Label motocle
-        const motocleLabel = this.add.text(-250, height - 70, 'MOTOCLE', {
-            fontSize: '14px',
-            color: '#FFD700',
-            fontStyle: 'bold',
-            stroke: '#000000',
-            strokeThickness: 2
-        }).setOrigin(0.5).setDepth(-3);
-        
-        this.tweens.add({
-            targets: motocleLabel,
-            x: width + 100,
-            duration: 9000,
-            repeat: -1,
-            ease: 'None',
-            delay: 2000
-        });
-        
-        console.log("🏷️ Labels móviles creados");
+        console.log("🏷️ Labels móviles creados para ninja, MOTOCLE y amigo (sin chocar)");
     }
 }

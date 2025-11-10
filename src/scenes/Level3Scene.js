@@ -33,7 +33,9 @@ class Level3Scene extends Phaser.Scene {
         this.cannonBalls = null;
         this.explosions = null;
         this.cannonFireRate = 3000;
-        this.levelMessageShown = false; // ✅ Evitar mensaje duplicado
+        // ✅ BANDERAS PARA EVITAR DUPLICADOS DE MENSAJES
+        this.levelMessageShown = false;
+        this.levelCompleteShown = false;
     }
 
     init(data) {
@@ -792,6 +794,11 @@ class Level3Scene extends Phaser.Scene {
             }
         ).setOrigin(0.5).setDepth(1000).setScrollFactor(0);
 
+        // ✅ ASEGURAR QUE EL TEXTO SE IGNORE EN LA CÁMARA DE UI
+        if (this.uiCamera) {
+            this.uiCamera.ignore([levelText]);
+        }
+
         this.tweens.add({
             targets: levelText,
             alpha: 0,
@@ -805,6 +812,13 @@ class Level3Scene extends Phaser.Scene {
 
     // ✅ FUNCIÓN LEVEL COMPLETE CON BOTÓN SPACE
     levelComplete() {
+        // ✅ EVITAR DUPLICADOS - Solo ejecutar una vez
+        if (this.levelCompleteShown) {
+            console.log("⚠️ Mensaje de completado ya mostrado - ignorando duplicado");
+            return;
+        }
+        this.levelCompleteShown = true;
+        
         console.log("🎉 ¡Nivel 3 completado! La Fortaleza ha sido conquistada!");
         
         this.physics.pause();
@@ -851,6 +865,11 @@ class Level3Scene extends Phaser.Scene {
             }
         ).setOrigin(0.5).setDepth(2000).setScrollFactor(0);
 
+        // ✅ ASEGURAR QUE LOS TEXTOS SE IGNOREN EN LA CÁMARA DE UI
+        if (this.uiCamera) {
+            this.uiCamera.ignore([victoryText, completedText, continueText]);
+        }
+
         // ✅ ANIMACIONES
         this.tweens.add({
             targets: [victoryText, completedText],
@@ -871,11 +890,22 @@ class Level3Scene extends Phaser.Scene {
             ease: 'Sine.easeInOut'
         });
 
-        // ✅ FUNCIÓN PARA IR AL MENÚ
+        // ✅ FUNCIÓN PARA IR AL MENÚ (CON PROTECCIÓN CONTRA MÚLTIPLES LLAMADAS)
         const goToMenu = () => {
+            if (this._advancingToMenu) {
+                console.log("⚠️ Ya se está avanzando al menú - ignorando");
+                return;
+            }
+            this._advancingToMenu = true;
+            
             // Remover listener para evitar múltiples activaciones
             this.input.keyboard.off('keydown-SPACE', spaceHandler);
             this.input.off('pointerdown', clickHandler);
+            
+            // Cancelar timer automático si existe
+            if (this.autoAdvanceTimer) {
+                this.autoAdvanceTimer.remove();
+            }
             
             console.log("🚀 Regresando al menú principal...");
             
@@ -898,12 +928,12 @@ class Level3Scene extends Phaser.Scene {
             goToMenu();
         };
 
-        // ✅ AGREGAR LISTENERS
-        this.input.keyboard.on('keydown-SPACE', spaceHandler);
-        this.input.on('pointerdown', clickHandler);
+        // ✅ AGREGAR LISTENERS (USAR .once PARA MAYOR SEGURIDAD)
+        this.input.keyboard.once('keydown-SPACE', spaceHandler);
+        this.input.once('pointerdown', clickHandler);
 
         // ✅ TRANSICIÓN AUTOMÁTICA DESPUÉS DE 10 SEGUNDOS
-        this.time.delayedCall(10000, () => {
+        this.autoAdvanceTimer = this.time.delayedCall(10000, () => {
             console.log("⏰ Tiempo agotado - regresando automáticamente al menú...");
             goToMenu();
         });

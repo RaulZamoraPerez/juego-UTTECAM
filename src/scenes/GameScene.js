@@ -420,6 +420,8 @@ showMotocleSequence(doneCallback) {
         this.companionMaxHealth = 100;  // CAMBIAR A 100
         this.companionHealth = 100;     // CAMBIAR A 100
         this.isGamePaused = false;
+        // ✅ BANDERA PARA EVITAR DUPLICADOS DE MENSAJE DE VICTORIA
+        this.victoryMessageShown = false;
     }
 
     preload() {
@@ -605,6 +607,9 @@ this.playerManager.createCompanion();
 
         // Crear AngryPigs adicionales para Nivel 1
         this.addAngryPigsLevel1();
+        
+        // ✅ Crear gatos que caminan tranquilamente
+        this.addCatsLevel1();
 
         // Setup final
         this.setupPhysics();
@@ -756,6 +761,10 @@ this.playerManager.createCompanion();
         }
         this.playerManager.handleAnimations();
         this.enemyManager.updateEnemies();
+        
+        // ✅ Actualizar gatos
+        this.updateCats();
+        
         this.autoHeal();
         // Ataques
         if (this.player && this.player.active && this.keys.I && Phaser.Input.Keyboard.JustDown(this.keys.I)) {
@@ -1287,6 +1296,277 @@ openBook(item, opener = null) {
         console.log(`✅ ${pigPositions.length} AngryPigs agregados al Nivel 1`);
     }
 
+    // ✅ NUEVO: Agregar gato que camina tranquilamente (no ataca, como la gallina)
+    addCatsLevel1() {
+        if (!this.textures.exists('cat-walk')) {
+            console.log('❌ No se encontró la textura del gato');
+            return;
+        }
+        
+        // Grupo para gatos
+        if (!this.cats) {
+            this.cats = this.physics.add.group();
+        }
+        
+        // ✅ CREAR GATO EXACTAMENTE COMO LA GALLINA
+        const cat = this.cats.create(600, 395, 'cat-walk'); // Subir 5px (era 400)
+        cat.setBounce(0.1); // Igual que gallina
+        cat.setCollideWorldBounds(true);
+        cat.setVelocity(-50, 0); // Comienza caminando a la izquierda
+        cat.setScale(0.8);
+        
+        // ✅ AJUSTAR BODY: El sprite es 80x64 pero el gato solo usa cuadritos 3,4,5 (centro)
+        // Altura real del gato: cuadritos 3,4,5 = 24px de 64px total
+        // Offset Y: cuadritos 1,2 = 16px de espacio arriba
+        cat.body.setSize(64, 24); // Ancho: 80*0.8=64, Alto: solo la parte del gato (24px)
+        cat.body.setOffset(8, 16); // Offset Y: 16px (cuadritos 1 y 2 vacíos)
+        
+        // ✅ PROPIEDADES PARA COMPORTAMIENTO (caminar, detenerse, cambiar dirección)
+        cat.isCat = true;
+        cat.isNeutral = true; // NO ataca
+        cat.isIdle = false; // Comienza caminando
+        cat.walkDirection = -1; // -1 = izquierda, 1 = derecha
+        cat.stateTimer = 0; // Timer para cambiar estados
+        cat.messageTimer = 0; // Timer para mostrar mensajes aleatorios
+        cat.nextMessageTime = Phaser.Math.Between(300, 600); // Mostrar mensaje cada 5-10 segundos
+        
+        // ✅ SPRITE ORIGINAL MIRA A LA IZQUIERDA: izquierda = false, derecha = true
+        cat.setFlipX(cat.walkDirection === 1);
+        
+        // Animación
+        if (this.anims.exists('cat-walk')) {
+            cat.anims.play('cat-walk', true);
+        }
+        
+        console.log('🐱 Gato creado - body ajustado para compensar espacio vacío en sprite');
+    }
+
+    // ✅ NUEVO: Actualizar gato (camina, se detiene, cambia de dirección)
+    updateCats() {
+        if (!this.cats) return;
+        
+        this.cats.getChildren().forEach(cat => {
+            if (!cat.active) return;
+            
+            // ✅ Actualizar posición del globo de texto si existe (estilo Motocle con container)
+            if (cat._speechBubble) {
+                const { container, pointer } = cat._speechBubble;
+                if (container && container.active) {
+                    const boxHeight = 30; // Reducido (antes era 50)
+                    const my = cat.y - cat.displayHeight * 0.5; // Más pegado al gato
+                    const boxY = my - boxHeight - 5; // Más pegado (antes era -15)
+                    container.x = cat.x;
+                    container.y = boxY;
+                    if (pointer && pointer.active) {
+                        pointer.x = cat.x;
+                        pointer.y = boxY + boxHeight/2;
+                    }
+                }
+                return; // No actualizar estado mientras habla
+            }
+            
+            // ✅ CONTADOR PARA MENSAJES ALEATORIOS
+            if (!cat.messageTimer) cat.messageTimer = 0;
+            cat.messageTimer++;
+            
+            // Mostrar mensaje aleatorio cada cierto tiempo (5-10 segundos)
+            if (cat.messageTimer > cat.nextMessageTime) {
+                this.showCatMessage(cat);
+                cat.messageTimer = 0;
+                cat.nextMessageTime = Phaser.Math.Between(300, 600); // Próximo mensaje en 5-10 seg
+            }
+            
+            // Incrementar timer
+            if (!cat.stateTimer) cat.stateTimer = 0;
+            cat.stateTimer++;
+            
+            // Si está quieto
+            if (cat.isIdle) {
+                // Quedarse quieto 2-4 segundos (120-240 frames a 60fps)
+                if (cat.stateTimer > Phaser.Math.Between(120, 240)) {
+                    // Volver a caminar
+                    cat.isIdle = false;
+                    cat.stateTimer = 0;
+                    
+                    // 50% de probabilidad de cambiar dirección
+                    if (Phaser.Math.Between(0, 1) === 1) {
+                        cat.walkDirection *= -1;
+                    }
+                    
+                    // Empezar a caminar
+                    cat.setVelocityX(50 * cat.walkDirection);
+                    
+                    // ✅ SPRITE ORIGINAL MIRA A LA IZQUIERDA: izquierda = false, derecha = true
+                    cat.setFlipX(cat.walkDirection === 1);
+                    
+                    if (this.anims.exists('cat-walk')) {
+                        cat.anims.play('cat-walk', true);
+                    }
+                }
+            } else {
+                // Está caminando - caminar por 3-5 segundos (180-300 frames)
+                if (cat.stateTimer > Phaser.Math.Between(180, 300)) {
+                    // Detenerse
+                    cat.isIdle = true;
+                    cat.stateTimer = 0;
+                    cat.setVelocityX(0);
+                    
+                    if (this.anims.exists('cat-idle')) {
+                        cat.anims.play('cat-idle', true);
+                    }
+                }
+                
+                // Voltear si choca con bordes
+                if (cat.body.blocked.left || cat.body.blocked.right) {
+                    cat.walkDirection *= -1;
+                    cat.setVelocityX(50 * cat.walkDirection);
+                    
+                    // ✅ SPRITE ORIGINAL MIRA A LA IZQUIERDA: izquierda = false, derecha = true
+                    cat.setFlipX(cat.walkDirection === 1);
+                }
+            }
+        });
+    }
+
+    // ✅ NUEVO: Mostrar mensaje aleatorio del gato
+    showCatMessage(cat) {
+        // Si ya está hablando, no mostrar otro mensaje
+        if (cat._speechBubble) return;
+        
+        // Mensajes aleatorios simples del gato
+        const messages = [
+            '😺 Miau~',
+            '🐟 ¿Pescado?',
+            '💤 Zzz...',
+            '🐾 Miau miau',
+            '✨ Ronroneo~',
+            '🎣 Hambre...',
+            '😸 Miauu',
+            '🌟 Purr purr',
+            '🐱 Gatito feliz',
+            '🍃 Explorador'
+        ];
+        
+        // Seleccionar mensaje aleatorio
+        const text = Phaser.Utils.Array.GetRandom(messages);
+        
+        // ✅ CREAR GLOBO ESTILO MOTOCLE (VERSIÓN PEQUEÑA)
+        const mx = cat.x;
+        const my = cat.y - cat.displayHeight * 0.5; // Más pegado al gato (antes era - cat.displayHeight)
+        
+        // Configuración - Más pequeño
+        const padding = 10; // Reducido de 18 a 10
+        const maxWidth = 120; // Reducido de 200 a 120
+        
+        // Crear texto temporal para medir
+        const tempText = this.add.text(0, 0, text, {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '11px', // Reducido de 14px a 11px
+            color: '#2c3e50',
+            align: 'center',
+            wordWrap: { width: maxWidth - padding * 2 },
+            lineSpacing: 2, // Reducido de 4 a 2
+        }).setOrigin(0.5, 0.5);
+        
+        const bounds = tempText.getBounds();
+        const textWidth = bounds.width;
+        const textHeight = bounds.height;
+        tempText.destroy();
+        
+        // Calcular dimensiones del cuadro
+        const boxWidth = Math.min(textWidth + padding * 2, maxWidth);
+        const boxHeight = textHeight + padding * 2;
+        const boxY = my - boxHeight - 5; // Más pegado (antes era -10)
+        
+        // Crear contenedor
+        const container = this.add.container(mx, boxY).setDepth(2000);
+        
+        // Fondo del cuadro
+        const bg = this.add.graphics();
+        bg.fillStyle(0x000000, 0.1); // Sombra más sutil (0.15 a 0.1)
+        bg.fillRoundedRect(-boxWidth/2 + 1, -boxHeight/2 + 1, boxWidth, boxHeight, 8); // Radio reducido a 8
+        bg.fillStyle(0xffffff, 1);
+        bg.fillRoundedRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight, 8); // Radio reducido a 8
+        
+        // Borde
+        const border = this.add.graphics();
+        border.lineStyle(2, 0xFF9800, 1); // Borde más delgado (3 a 2)
+        border.strokeRoundedRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight, 8); // Radio reducido a 8
+        
+        // Texto
+        const bubbleText = this.add.text(0, 0, text, {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '11px', // Reducido de 14px a 11px
+            color: '#2c3e50',
+            align: 'center',
+            wordWrap: { width: maxWidth - padding * 2 },
+            lineSpacing: 2, // Reducido de 4 a 2
+        }).setOrigin(0.5, 0.5);
+        
+        container.add([bg, border, bubbleText]);
+        
+        // Triángulo apuntador (más pequeño)
+        const pointer = this.add.graphics();
+        pointer.setPosition(mx, boxY + boxHeight/2);
+        pointer.fillStyle(0x000000, 0.1); // Sombra más sutil
+        pointer.fillTriangle(-6, 1, 6, 1, 0, 8); // Más pequeño
+        pointer.fillStyle(0xffffff, 1);
+        pointer.fillTriangle(-6, 0, 6, 0, 0, 7); // Más pequeño
+        pointer.lineStyle(2, 0xFF9800, 1); // Borde más delgado
+        pointer.beginPath();
+        pointer.moveTo(-6, 0);
+        pointer.lineTo(0, 7);
+        pointer.lineTo(6, 0);
+        pointer.strokePath();
+        pointer.setDepth(2000);
+        
+        // Animación de entrada
+        container.setAlpha(0).setScale(0.85);
+        pointer.setAlpha(0).setScale(0.85);
+        
+        this.tweens.add({
+            targets: [container, pointer],
+            alpha: 1,
+            scale: 1,
+            duration: 350,
+            ease: 'Back.easeOut',
+        });
+        
+        // Animación de flotación
+        const floatTween = this.tweens.add({
+            targets: [container, pointer],
+            y: '+=2',
+            duration: 1800,
+            ease: 'Sine.easeInOut',
+            yoyo: true,
+            repeat: -1,
+        });
+        
+        // Scroll factor
+        container.setScrollFactor(1);
+        pointer.setScrollFactor(1);
+        if (this.uiCamera && this.uiCamera.ignore) {
+            this.uiCamera.ignore([container, pointer]);
+        }
+        
+        // Guardar referencia
+        cat._speechBubble = { container, pointer, floatTween };
+        
+        // Después de 2 segundos, destruir el mensaje
+        this.time.delayedCall(2000, () => {
+            if (floatTween) {
+                floatTween.stop();
+                floatTween.remove();
+            }
+            if (container && container.active) container.destroy();
+            if (pointer && pointer.active) pointer.destroy();
+            
+            if (cat && cat.active) {
+                cat._speechBubble = null;
+            }
+        });
+    }
+
     setupPhysics() {
         // Colisiones
     this.physics.add.collider(this.player, this.platforms);
@@ -1295,6 +1575,12 @@ openBook(item, opener = null) {
     this.physics.add.collider(this.coins, this.platforms);
     this.physics.add.collider(this.enemies, this.platforms);
     this.physics.add.collider(this.items, this.platforms);
+    
+    // ✅ COLISIONES DEL GATO (solo con plataformas, NO con personajes para que no lo arrastren)
+    if (this.cats) {
+        this.physics.add.collider(this.cats, this.platforms); // El gato pisa las plataformas
+        // NO colisión con player, companion, motocle, enemies para evitar que lo arrastren
+    }
 
     // Interacciones
     this.physics.add.overlap(this.player, this.coins, this.collectCoin, null, this);
@@ -1330,6 +1616,13 @@ openBook(item, opener = null) {
     }
 
     showVictoryMessage() {
+        // ✅ EVITAR DUPLICADOS - Solo mostrar una vez
+        if (this.victoryMessageShown) {
+            console.log("⚠️ Mensaje de victoria ya mostrado - ignorando duplicado");
+            return;
+        }
+        this.victoryMessageShown = true;
+        
         console.log("🏆 NIVEL 1 COMPLETADO!");
         
         const victoryText = this.add.text(400, 200, '¡NIVEL COMPLETADO!', {
@@ -1344,37 +1637,30 @@ openBook(item, opener = null) {
             fill: '#FFFFFF'
         }).setOrigin(0.5).setScrollFactor(0).setDepth(3000);
         
-        // Permitir avanzar al nivel 2
-        const advanceToLevel2 = () => {
-            if (this.keys.SPACE && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
-                this.scene.start('Level2Scene', {
-                    score: this.gameState.score,
-                    health: this.gameState.health,
-                    coinsCollected: 0, // Resetear monedas para el nuevo nivel
-                    enemiesKilled: this.gameState.enemiesKilled
-                });
-            }
+        // ✅ ASEGURAR QUE LOS TEXTOS SE IGNOREN EN LA CÁMARA DE UI
+        if (this.uiCamera) {
+            this.uiCamera.ignore([victoryText, continueText]);
+        }
+        
+        // ✅ HANDLER ÚNICO PARA EVITAR MÚLTIPLES LISTENERS
+        const goToLevel2 = () => {
+            if (this._advancingToLevel2) return; // Evitar múltiples llamadas
+            this._advancingToLevel2 = true;
+            
+            console.log("🚀 Avanzando al Nivel 2");
+            this.scene.start('Level2Scene', {
+                score: this.gameState.score,
+                health: this.gameState.health,
+                coinsCollected: 0,
+                enemiesKilled: this.gameState.enemiesKilled
+            });
         };
         
-        // Agregar listener para avanzar
-        this.input.keyboard.on('keydown-SPACE', () => {
-            this.scene.start('Level2Scene', {
-                score: this.gameState.score,
-                health: this.gameState.health,
-                coinsCollected: 0,
-                enemiesKilled: this.gameState.enemiesKilled
-            });
-        });
+        // ✅ UN SOLO LISTENER PARA ESPACIO
+        this.input.keyboard.once('keydown-SPACE', goToLevel2);
         
-        // Auto-avanzar después de 5 segundos si no presiona nada
-        this.time.delayedCall(5000, () => {
-            this.scene.start('Level2Scene', {
-                score: this.gameState.score,
-                health: this.gameState.health,
-                coinsCollected: 0,
-                enemiesKilled: this.gameState.enemiesKilled
-            });
-        });
+        // ✅ AUTO-AVANZAR DESPUÉS DE 5 SEGUNDOS
+        this.time.delayedCall(5000, goToLevel2);
     }
 
     gameOver() {
