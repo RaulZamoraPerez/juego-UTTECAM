@@ -33,9 +33,6 @@ class Level3Scene extends Phaser.Scene {
         this.cannonBalls = null;
         this.explosions = null;
         this.cannonFireRate = 3000;
-        // ✅ BANDERAS PARA EVITAR DUPLICADOS DE MENSAJES
-        this.levelMessageShown = false;
-        this.levelCompleteShown = false;
     }
 
     init(data) {
@@ -77,6 +74,16 @@ class Level3Scene extends Phaser.Scene {
                 { 
                     frameWidth: 96,    // 960/10 = 96 pixels por frame
                     frameHeight: 64,    // altura real del sprite
+                    margin: 0,
+                    spacing: 0
+                });
+                
+            // Cargar spritesheet del ataque del esqueleto
+            this.load.spritesheet('skeleton_attack', 
+                'assets/Skeleton_White/Skeleton_With_VFX/Skeleton_01_White_Attack2.png', 
+                { 
+                    frameWidth: 96,    // 960/10 = 96 pixels por frame
+                    frameHeight: 64,    // mismas dimensiones que walk
                     margin: 0,
                     spacing: 0
                 });
@@ -124,9 +131,8 @@ class Level3Scene extends Phaser.Scene {
         
         // ✅ CREAR ELEMENTOS DEL NIVEL
         this.createLevel3Coins();
-        this.createLevel3Cannons();
-        this.createLevel3Enemies();
-        this.createSkeletonBoss(); // ✅ AGREGAR ESTA LÍNEA
+        this.createLevel3Cannons(); // ✅ Cañones corregidos
+        this.createLevel3Enemies(); // ✅ AGREGAR ENEMIGOS TRADICIONALES
         this.createLevel3Items();
 
         // ✅ SETUP FÍSICAS como Level2
@@ -332,236 +338,339 @@ class Level3Scene extends Phaser.Scene {
         console.log(`✅ ${coinPositions.length} monedas creadas en Nivel 3`);
     }
 
-    createLevel3Cannons() {
-        console.log('🔫 Creando cañones del Nivel 3...');
-        
-        // ✅ CREAR SOLO GRUPOS PARA COMPATIBILIDAD
-        this.cannons = this.physics.add.staticGroup();
-        this.cannonBalls = this.physics.add.group();
+  // ...existing code...
+
+createLevel3Cannons() {
+    // ✅ CREAR COMO GRUPO ESTÁTICO PARA QUE NO CAIGAN
+    this.cannons = this.physics.add.staticGroup();
+    this.cannonBalls = this.physics.add.group();
     
-        // ✅ SOLO 2 CAÑONES FUNCIONALES
-        const cannonPositions = [
-            { x: 1200, y: 250, direction: 'left', active: true },   // Primer cañón funcional
-            { x: 2800, y: 350, direction: 'right', active: true }   // Segundo cañón funcional
-        ];
+    // Solo 2 cañones estratégicamente ubicados
+    const cannonPositions = [
+        { x: 800, y: 218, direction: 'left', platform: 'Base cañón 1' },     // Primer cañón
+        { x: 2000, y: 218, direction: 'right', platform: 'Base cañón 2' }    // Segundo cañón
+    ];
     
-        cannonPositions.forEach((pos, index) => {
-            const cannonTexture = this.textures.exists('cannonIdle') ? 'cannonIdle' : 'coinFallback';
-            const cannon = this.cannons.create(pos.x, pos.y, cannonTexture);
-            
-            cannon.setScale(1.5);
-            cannon.setTint(0x444444);
-            cannon.setOrigin(0.5, 1);
-            
-            // ✅ PROPIEDADES DEL CAÑÓN
-            cannon.health = 80;
-            cannon.maxHealth = 80;
-            cannon.damage = 15; // ✅ DAÑO REDUCIDO (antes 35)
-            cannon.direction = pos.direction;
-            cannon.lastFire = 0;
-            cannon.fireRate = 3500 + (index * 500);
-            cannon.enemyType = 'cannon';
-            cannon.isDestroyed = false;
-            cannon.isActive = pos.active; // ✅ MARCAR SI ESTÁ ACTIVO
-            
-            // ✅ FLIP SEGÚN DIRECCIÓN
-            if (pos.direction === 'left') {
-                cannon.setFlipX(true);
-            } else {
-                cannon.setFlipX(false);
-            }
-            
-            cannon.refreshBody();
-            
-            console.log(`🔫 Cañón ${index + 1} en (${pos.x}, ${pos.y}) → ${pos.direction}, activo: ${cannon.isActive}`);
-        });
+    cannonPositions.forEach((pos, index) => {
+        const cannonTexture = this.textures.exists('cannonIdle') ? 'cannonIdle' : 'coinFallback';
+        const cannon = this.cannons.create(pos.x, pos.y, cannonTexture);
         
-        // ✅ INICIAR DISPARO SOLO DE CAÑONES ACTIVOS
-        this.startCannonFiring();
+        cannon.setScale(1.5); // ✅ TAMAÑO AJUSTADO PARA QUE QUEPA EN PLATAFORMA
+        cannon.setTint(0x444444);
+        cannon.setOrigin(0.5, 1); // ✅ ORIGEN EN LA BASE
         
-        console.log(`✅ ${cannonPositions.length} cañones creados (solo funcionales)`);
-    }
+        // ✅ PROPIEDADES
+        cannon.health = 80;
+        cannon.maxHealth = 80;
+        cannon.damage = 35;
+        cannon.direction = pos.direction;
+        cannon.lastFire = 0;
+                    cannon.fireRate = 3500 + (index * 500); // Más tiempo entre disparos
+        cannon.enemyType = 'cannon';
+        cannon.isDestroyed = false;
+        cannon.platformName = pos.platform;
+        
+        // ✅ FLIP CORREGIDO - ASEGURAR CONSISTENCIA VISUAL
+        if (pos.direction === 'left') {
+            cannon.setFlipX(true);  // ✅ FLIP PARA APUNTAR IZQUIERDA
+        } else {
+            cannon.setFlipX(false); // ✅ NORMAL PARA APUNTAR DERECHA
+        }
+        
+        // ✅ REFRESHBODY PARA APLICAR CAMBIOS
+        cannon.refreshBody();
+        
+        console.log(`🔫 Cañón en ${pos.platform} (${pos.x}, ${pos.y}) → ${pos.direction}, flip: ${cannon.flipX}`);
+    });
+    
+    this.startCannonFiring();
+    
+    console.log(`✅ ${this.cannons.children.size} cañones correctamente posicionados`);
+}
+
+// ...existing code...
 
     // ✅ NUEVO MÉTODO: Crear enemigos tradicionales junto con cañones
     createLevel3Enemies() {
         this.enemies = this.physics.add.group();
         
-        // ✅ VERIFICAR QUE LA TEXTURA EXISTE ANTES DE CREAR ANIMACIÓN
-        if (this.textures.exists('skeleton_walk')) {
-            // Crear animación del esqueleto solo si no existe
-            if (!this.anims.exists('skeleton_walk_anim')) {
-                try {
-                    this.anims.create({
-                        key: 'skeleton_walk_anim',
-                        frames: this.anims.generateFrameNumbers('skeleton_walk', { 
-                            start: 0, 
-                            end: 9  // 10 frames: 0-9
-                        }),
-                        frameRate: 10,
-                        repeat: -1
-                    });
-                    console.log('✅ Animación skeleton_walk_anim creada');
-                } catch (e) {
-                    console.error('❌ Error creando animación skeleton:', e);
-                }
-            }
+        // Crear animaciones del esqueleto
+        this.anims.create({
+            key: 'skeleton_walk_anim',
+            frames: this.anims.generateFrameNumbers('skeleton_walk', { 
+                start: 1, 
+                end: 10  // 10 frames en total
+            }),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        // Crear animación de ataque
+        this.anims.create({
+            key: 'skeleton_attack_anim',
+            frames: this.anims.generateFrameNumbers('skeleton_attack', {
+                start: 1,
+                end: 10  // 10 frames en total
+            }),
+            frameRate: 15,  // Un poco más rápido que caminar
+            repeat: 0      // No se repite, solo una vez
+        });
+        
+        // ✅ CREAR MÚLTIPLES ESQUELETOS EN DIFERENTES POSICIONES
+        const skeletonPositions = [
+            // Zona inicial - 2 esqueletos
+            { x: 300, y: 500, patrolStart: 200, patrolEnd: 500, speed: 50, health: 100 },
+            { x: 700, y: 400, patrolStart: 600, patrolEnd: 900, speed: 60, health: 120 },
             
-            // Crear un esqueleto
-            const skeleton = this.enemies.create(300, 500, 'skeleton_walk', 0);
-            skeleton.setScale(1);
+            // Zona media - 3 esqueletos más agresivos
+            { x: 1000, y: 330, patrolStart: 900, patrolEnd: 1200, speed: 70, health: 140 },
+            { x: 1400, y: 270, patrolStart: 1300, patrolEnd: 1600, speed: 65, health: 130 },
+            { x: 1800, y: 430, patrolStart: 1700, patrolEnd: 2000, speed: 80, health: 150 },
+            
+            // Zona final - 2 esqueletos élite
+            { x: 2200, y: 350, patrolStart: 2100, patrolEnd: 2400, speed: 90, health: 160 },
+            { x: 2600, y: 250, patrolStart: 2500, patrolEnd: 2800, speed: 85, health: 180 }
+        ];
+        
+        skeletonPositions.forEach((config, index) => {
+            const skeleton = this.enemies.create(config.x, config.y, 'skeleton_walk');
+            skeleton.setScale(1.2);  // Ligeramente más grandes
             skeleton.setBounce(0.1);
             skeleton.setCollideWorldBounds(true);
-            skeleton.setVelocityX(60);
-            skeleton.health = 90;
-            skeleton.damage = 20;
+            skeleton.setVelocityX(config.speed);
+            skeleton.health = config.health;
+            skeleton.maxHealth = config.health;
+            skeleton.damage = 35 + (index * 5); // Daño incrementa con cada esqueleto
             skeleton.enemyType = 'skeleton';
             skeleton.setOrigin(0.5, 1);
+            skeleton.isAttacking = false;
+            skeleton.attackCooldown = 0;
+            skeleton.attackRange = 80 + (index * 10); // Rango aumenta con experiencia
+            skeleton.currentTarget = null;
+            skeleton.skeletonId = index + 1; // ID único para debugging
             
-            // ✅ REPRODUCIR ANIMACIÓN SOLO SI EXISTE
-            if (this.anims.exists('skeleton_walk_anim')) {
-                try {
-                    skeleton.play('skeleton_walk_anim', true);
-                } catch (e) {
-                    console.error('❌ Error reproduciendo animación skeleton:', e);
-                }
-            }
+            // ✅ COLORES DIFERENTES PARA DISTINGUIR DIFICULTAD
+            const tints = [0xFFFFFF, 0xFFCCCC, 0xFFAAAA, 0xFF8888, 0xFF6666, 0xFF4444, 0xFF2222];
+            skeleton.setTint(tints[index] || 0xFF0000);
             
-            // Añadir comportamiento de patrulla
+            // Iniciar la animación de caminar
+            skeleton.play('skeleton_walk_anim', true);
+            
+            // ✅ PATRULLA PERSONALIZADA PARA CADA ESQUELETO
             skeleton.patrolPoints = [
-                { x: 300, y: 500 },
-                { x: 600, y: 500 }
+                { x: config.patrolStart, y: config.y },
+                { x: config.patrolEnd, y: config.y }
             ];
             skeleton.currentPoint = 0;
             skeleton.direction = 1;
+            skeleton.baseSpeed = config.speed;
+            skeleton.aggroSpeed = config.speed * 1.5; // Velocidad cuando persigue
+            skeleton.isAggressive = index >= 4; // Los últimos 3 son más agresivos
             
-            // Actualizar el movimiento del esqueleto
-            this.time.addEvent({
-                delay: 100,
-                callback: () => {
-                    if (!skeleton || !skeleton.active) return;
-                    
-                    const targetX = skeleton.patrolPoints[skeleton.currentPoint].x;
-                    
-                    if (Math.abs(skeleton.x - targetX) < 10) {
-                        skeleton.currentPoint = (skeleton.currentPoint + 1) % skeleton.patrolPoints.length;
-                        skeleton.direction *= -1;
-                        skeleton.setVelocityX(60 * skeleton.direction);
-                        skeleton.setFlipX(skeleton.direction < 0);
-                        
-                        // ✅ ASEGURAR QUE LA ANIMACIÓN SIGUE CORRIENDO (CON PROTECCIÓN)
-                        if (skeleton.anims && !skeleton.anims.isPlaying) {
-                            // Solo intentar reproducir si la animación existe
-                            if (this.anims.exists('skeleton_walk_anim')) {
-                                try {
-                                    skeleton.anims.play('skeleton_walk_anim', true);
-                                } catch (e) {
-                                    // Ignorar error silenciosamente
-                                }
-                            }
-                        }
-                    }
-                },
-                loop: true
-            });
-            
-            console.log('✅ Skeleton creado en (300, 500)');
-        } else {
-            console.warn('⚠️ Textura skeleton_walk no existe - omitiendo esqueleto');
-        }
+            console.log(`💀 Esqueleto ${skeleton.skeletonId} creado: Vida ${skeleton.health}, Daño ${skeleton.damage}, Velocidad ${skeleton.baseSpeed}`);
+        });
         
-        // ✅ TEXTURAS DE ENEMIGOS
+        // ✅ SISTEMA DE COMPORTAMIENTO MEJORADO PARA TODOS LOS ESQUELETOS
+        this.skeletonBehaviorTimer = this.time.addEvent({
+            delay: 80, // Actualización más frecuente para mejor respuesta
+            callback: () => {
+                this.enemies.children.entries.forEach(enemy => {
+                    if (enemy.enemyType !== 'skeleton' || !enemy.active) return;
+                    
+                    const currentTime = this.time.now;
+                    
+                    // ✅ FUNCIÓN MEJORADA PARA VERIFICAR DISTANCIA
+                    const checkTarget = (target) => {
+                        if (!target || !target.active) return Infinity;
+                        return Phaser.Math.Distance.Between(
+                            enemy.x, enemy.y,
+                            target.x, target.y
+                        );
+                    };
+
+                    // ✅ VERIFICAR AMBOS OBJETIVOS
+                    const distanceToPlayer = checkTarget(this.player);
+                    const distanceToCompanion = checkTarget(this.companion);
+
+                    // ✅ DETERMINAR OBJETIVO MÁS CERCANO
+                    let closestTarget = null;
+                    let closestDistance = Infinity;
+
+                    if (distanceToPlayer < closestDistance) {
+                        closestDistance = distanceToPlayer;
+                        closestTarget = this.player;
+                    }
+                    if (distanceToCompanion < closestDistance) {
+                        closestDistance = distanceToCompanion;
+                        closestTarget = this.companion;
+                    }
+
+                    // ✅ SISTEMA DE AGGRO MEJORADO
+                    const detectionRange = enemy.isAggressive ? 250 : 180;
+                    const chaseRange = enemy.isAggressive ? 300 : 220;
+                    
+                    if (closestTarget && closestDistance < detectionRange) {
+                        enemy.currentTarget = closestTarget;
+                        enemy.isChasing = true;
+                    } else if (closestDistance > chaseRange) {
+                        enemy.currentTarget = null;
+                        enemy.isChasing = false;
+                    }
+
+                    // ✅ SISTEMA DE ATAQUE MEJORADO
+                    if (enemy.currentTarget && closestDistance < enemy.attackRange && 
+                        currentTime > enemy.attackCooldown && !enemy.isAttacking) {
+                        
+                        enemy.isAttacking = true;
+                        
+                        // Voltear hacia el objetivo
+                        enemy.setFlipX(enemy.currentTarget.x < enemy.x);
+                        
+                        // Reproducir animación de ataque
+                        enemy.play('skeleton_attack_anim', true).once('animationcomplete', () => {
+                            if (enemy.active) {
+                                enemy.isAttacking = false;
+                                enemy.play('skeleton_walk_anim', true);
+                            }
+                        });
+                        
+                        // ✅ COOLDOWN VARIABLE SEGÚN AGRESIVIDAD
+                        const cooldownTime = enemy.isAggressive ? 1200 : 1800;
+                        enemy.attackCooldown = currentTime + cooldownTime;
+                        
+                        console.log(`⚔️ Esqueleto ${enemy.skeletonId} atacando!`);
+                    }
+
+                    // ✅ SISTEMA DE MOVIMIENTO INTELIGENTE
+                    if (!enemy.isAttacking) {
+                        let targetSpeed = enemy.baseSpeed;
+                        let targetDirection = enemy.direction;
+                        
+                        if (enemy.isChasing && enemy.currentTarget) {
+                            // ✅ PERSEGUIR AL OBJETIVO
+                            targetDirection = enemy.currentTarget.x < enemy.x ? -1 : 1;
+                            targetSpeed = enemy.aggroSpeed;
+                            enemy.setFlipX(targetDirection === -1);
+                            
+                            // ✅ SALTO OCASIONAL PARA ESQUELETOS AGRESIVOS
+                            if (enemy.isAggressive && enemy.body.touching.down && 
+                                Math.random() < 0.015 && closestDistance < 120) {
+                                enemy.setVelocityY(-200);
+                            }
+                        } else {
+                            // ✅ PATRULLAR NORMALMENTE
+                            const targetX = enemy.patrolPoints[enemy.currentPoint].x;
+                            
+                            if (Math.abs(enemy.x - targetX) < 15) {
+                                enemy.currentPoint = (enemy.currentPoint + 1) % enemy.patrolPoints.length;
+                                enemy.direction *= -1;
+                                enemy.setFlipX(enemy.direction < 0);
+                            }
+                            
+                            targetDirection = enemy.direction;
+                        }
+                        
+                        // ✅ APLICAR MOVIMIENTO
+                        enemy.setVelocityX(targetSpeed * targetDirection);
+                        
+                        // ✅ ASEGURAR ANIMACIÓN DE CAMINAR
+                        if (!enemy.anims.isPlaying || enemy.anims.currentAnim.key !== 'skeleton_walk_anim') {
+                            enemy.play('skeleton_walk_anim', true);
+                        }
+                    } else {
+                        // ✅ DURANTE ATAQUE, MOVIMIENTO REDUCIDO
+                        const attackMoveSpeed = enemy.baseSpeed * 0.3;
+                        enemy.setVelocityX(enemy.direction * attackMoveSpeed);
+                    }
+                });
+            },
+            loop: true
+        });
+        
+        // ✅ ENEMIGOS TRADICIONALES REDUCIDOS PARA DAR ESPACIO A LOS ESQUELETOS
         const rinoTexture = this.textures.exists('rino-idle') ? 'rino-idle' : 'gallinaFallback';
         const bluebirdTexture = this.textures.exists('bluebird-flying') ? 'bluebird-flying' : 'gallinaFallback';
         const angryPigTexture = this.textures.exists('angrypig-idle') ? 'angrypig-idle' : 'gallinaFallback';
         
-        // ✅ ENEMIGOS REDUCIDOS Y CON MENOS DAÑO
-        const enemyPositions = [
+        // Solo algunos enemigos estratégicos complementarios
+        const otherEnemyPositions = [
             // Zona inicial
-            { x: 600, y: 450, type: 'angrypig' },   // Cerdo inicial
-            { x: 900, y: 330, type: 'bluebird' },   // Pájaro volando
+            { x: 550, y: 350, type: 'bluebird' },  // Pájaro volando
             
             // Zona media
-            { x: 1300, y: 270, type: 'rino' },      // Rino guardián
-            { x: 1700, y: 430, type: 'bluebird' },  // Pájaro patrulla
+            { x: 1500, y: 130, type: 'bluebird' }, // Pájaro alto
             
-            // Zona final
-            { x: 2400, y: 350, type: 'angrypig' },  // Cerdo avanzado
-            { x: 2800, y: 300, type: 'bluebird' }   // Pájaro final
+            // Zona final - Jefes finales
+            { x: 2900, y: 440, type: 'rino' },     // Rino guardian final
+            { x: 3200, y: 280, type: 'angrypig' }  // Cerdo jefe final
         ];
 
-        enemyPositions.forEach((pos, index) => {
+        otherEnemyPositions.forEach((pos, index) => {
             let enemy;
             
             if (pos.type === 'angrypig') {
                 enemy = this.enemies.create(pos.x, pos.y, angryPigTexture);
                 enemy.setBounce(0.1);
                 enemy.setCollideWorldBounds(true);
-                enemy.setVelocity(Phaser.Math.Between(-60, 60), 0);
-                enemy.health = 70; // ✅ VIDA REDUCIDA
-                enemy.damage = 15;  // ✅ DAÑO REDUCIDO (antes 35)
+                enemy.setVelocity(Phaser.Math.Between(-80, 80), 0);
+                enemy.health = 140; // ✅ MÁS VIDA PARA COMPENSAR LOS ESQUELETOS
+                enemy.damage = 45;  // ✅ MÁS DAÑO
                 enemy.enemyType = 'angrypig';
-                enemy.setScale(1.3);
-                enemy.setTint(0xFF6B6B);
-                enemy.isLevel3 = true;
-                
-                // Propiedades específicas
-                enemy.isAngry = false;
-                enemy.hasAngryTint = false;
-                enemy.patrolTimer = 0;
-                enemy.randomMoveTimer = 0;
-                enemy.angryStartTime = 0;
+                enemy.setScale(1.8); // Aún más grande
+                enemy.setTint(0xFF1111); // Rojo más intenso
+                enemy.isLevel3Boss = true;
                 
                 if (this.anims.exists('angrypig-idle')) {
                     enemy.anims.play('angrypig-idle', true);
                 }
                 
-                console.log(`🐷 AngryPig Nivel 3 en (${pos.x}, ${pos.y})`);
+                console.log(`🐷 AngryPig JEFE en (${pos.x}, ${pos.y})`);
                 
             } else if (pos.type === 'rino') {
                 enemy = this.enemies.create(pos.x, pos.y, rinoTexture);
                 enemy.setBounce(0.1);
                 enemy.setCollideWorldBounds(true);
                 enemy.setVelocity(0, 0);
-                enemy.health = 100; // ✅ VIDA REDUCIDA (antes 140)
-                enemy.damage = 20;  // ✅ DAÑO REDUCIDO (antes 50)
+                enemy.health = 200; // ✅ JEFE TANQUE FINAL
+                enemy.damage = 60;  // ✅ DAÑO DEVASTADOR
                 enemy.enemyType = 'rino';
-                enemy.setScale(1.2);
-                enemy.setTint(0x8B4513);
+                enemy.setScale(1.6); // Más grande
+                enemy.setTint(0x654321); // Marrón épico
+                enemy.isLevel3Boss = true;
                 
                 if (this.anims.exists('rino-idle')) {
                     enemy.anims.play('rino-idle', true);
                 }
                 
-                console.log(`🦏 Rino Nivel 3 en (${pos.x}, ${pos.y})`);
+                console.log(`🦏 Rino JEFE FINAL en (${pos.x}, ${pos.y})`);
                 
             } else if (pos.type === 'bluebird') {
                 enemy = this.enemies.create(pos.x, pos.y, bluebirdTexture);
                 enemy.setBounce(0);
                 enemy.setCollideWorldBounds(false);
-                enemy.body.setGravityY(-250);
-                enemy.setVelocity(Phaser.Math.Between(-90, 90), Phaser.Math.Between(-70, 70));
-                enemy.health = 60; // ✅ VIDA REDUCIDA (antes 80)
-                enemy.damage = 15; // ✅ DAÑO REDUCIDO (antes 40)
+                enemy.body.setGravityY(-300); // Más flotante
+                enemy.setVelocity(Phaser.Math.Between(-120, 120), Phaser.Math.Between(-90, 90));
+                enemy.health = 100;
+                enemy.damage = 50; // ✅ MÁS DAÑO AÉREO
                 enemy.enemyType = 'bluebird';
-                enemy.setScale(1.3);
-                enemy.setTint(0x4A90E2);
+                enemy.setScale(1.8); // Más grande
+                enemy.setTint(0x0033FF); // Azul más intenso
                 
-                enemy.flightPattern = 'figure8';
+                enemy.flightPattern = 'aggressive';
                 enemy.centerX = pos.x;
                 enemy.centerY = pos.y;
                 enemy.angle = 0;
-                enemy.attackCooldown = 0;
-                enemy.isAttacking = false;
                 
                 if (this.anims.exists('bluebird-flying')) {
                     enemy.anims.play('bluebird-flying', true);
                 }
                 
-                console.log(`🐦 Bluebird Nivel 3 en (${pos.x}, ${pos.y})`);
+                console.log(`🐦 Bluebird élite en (${pos.x}, ${pos.y})`);
             }
         });
         
-        console.log(`✅ ${enemyPositions.length} enemigos creados en Nivel 3 (reducido y balanceado)`);
+        console.log(`✅ NIVEL 3 HARDCORE: ${skeletonPositions.length} esqueletos + ${otherEnemyPositions.length} jefes creados`);
+        console.log(`💀 Dificultad EXTREMA activada - ¡Prepárate para la batalla!`);
     }
 
     createLevel3Items() {
@@ -774,51 +883,31 @@ class Level3Scene extends Phaser.Scene {
 
     // ✅ FUNCIÓN PARA MOSTRAR MENSAJE DEL NIVEL 3
     showLevel3Message() {
-        // ✅ EVITAR MÚLTIPLES LLAMADAS
-        if (this.levelMessageShown) {
-            console.log('⚠️ Mensaje de nivel ya mostrado, evitando duplicado');
-            return;
-        }
-        this.levelMessageShown = true;
-        
         const { width, height } = this.sys.game.config;
         
-        const levelText = this.add.text(width/2, height/2, 'NIVEL 3', 
+        const levelText = this.add.text(width/2, height/2, 
+            '🏰 NIVEL 3: LA FORTALEZA 🏰\n\n💣 ¡Cuidado con los cañones! 💣', 
             {
-                fontSize: '48px',
+                fontSize: '32px',
                 color: '#FFD700',
                 fontStyle: 'bold',
                 stroke: '#000000',
-                strokeThickness: 6,
+                strokeThickness: 4,
                 align: 'center'
             }
         ).setOrigin(0.5).setDepth(1000).setScrollFactor(0);
 
-        // ✅ ASEGURAR QUE EL TEXTO SE IGNORE EN LA CÁMARA DE UI
-        if (this.uiCamera) {
-            this.uiCamera.ignore([levelText]);
-        }
-
         this.tweens.add({
             targets: levelText,
             alpha: 0,
-            duration: 2000,
-            delay: 1500,
+            duration: 3000,
+            delay: 2000,
             onComplete: () => levelText.destroy()
         });
-        
-        console.log('✅ Mensaje "NIVEL 3" mostrado');
     }
 
     // ✅ FUNCIÓN LEVEL COMPLETE CON BOTÓN SPACE
     levelComplete() {
-        // ✅ EVITAR DUPLICADOS - Solo ejecutar una vez
-        if (this.levelCompleteShown) {
-            console.log("⚠️ Mensaje de completado ya mostrado - ignorando duplicado");
-            return;
-        }
-        this.levelCompleteShown = true;
-        
         console.log("🎉 ¡Nivel 3 completado! La Fortaleza ha sido conquistada!");
         
         this.physics.pause();
@@ -865,11 +954,6 @@ class Level3Scene extends Phaser.Scene {
             }
         ).setOrigin(0.5).setDepth(2000).setScrollFactor(0);
 
-        // ✅ ASEGURAR QUE LOS TEXTOS SE IGNOREN EN LA CÁMARA DE UI
-        if (this.uiCamera) {
-            this.uiCamera.ignore([victoryText, completedText, continueText]);
-        }
-
         // ✅ ANIMACIONES
         this.tweens.add({
             targets: [victoryText, completedText],
@@ -890,22 +974,11 @@ class Level3Scene extends Phaser.Scene {
             ease: 'Sine.easeInOut'
         });
 
-        // ✅ FUNCIÓN PARA IR AL MENÚ (CON PROTECCIÓN CONTRA MÚLTIPLES LLAMADAS)
+        // ✅ FUNCIÓN PARA IR AL MENÚ
         const goToMenu = () => {
-            if (this._advancingToMenu) {
-                console.log("⚠️ Ya se está avanzando al menú - ignorando");
-                return;
-            }
-            this._advancingToMenu = true;
-            
             // Remover listener para evitar múltiples activaciones
             this.input.keyboard.off('keydown-SPACE', spaceHandler);
             this.input.off('pointerdown', clickHandler);
-            
-            // Cancelar timer automático si existe
-            if (this.autoAdvanceTimer) {
-                this.autoAdvanceTimer.remove();
-            }
             
             console.log("🚀 Regresando al menú principal...");
             
@@ -928,12 +1001,12 @@ class Level3Scene extends Phaser.Scene {
             goToMenu();
         };
 
-        // ✅ AGREGAR LISTENERS (USAR .once PARA MAYOR SEGURIDAD)
-        this.input.keyboard.once('keydown-SPACE', spaceHandler);
-        this.input.once('pointerdown', clickHandler);
+        // ✅ AGREGAR LISTENERS
+        this.input.keyboard.on('keydown-SPACE', spaceHandler);
+        this.input.on('pointerdown', clickHandler);
 
         // ✅ TRANSICIÓN AUTOMÁTICA DESPUÉS DE 10 SEGUNDOS
-        this.autoAdvanceTimer = this.time.delayedCall(10000, () => {
+        this.time.delayedCall(10000, () => {
             console.log("⏰ Tiempo agotado - regresando automáticamente al menú...");
             goToMenu();
         });
@@ -955,8 +1028,7 @@ class Level3Scene extends Phaser.Scene {
         const currentTime = this.time.now;
         
         this.cannons.children.entries.forEach(cannon => {
-            // ✅ VERIFICAR SI ESTÁ DESTRUIDO, INACTIVO O NO ES UN CAÑÓN FUNCIONAL
-            if (cannon.isDestroyed || !cannon.active || !cannon.isActive) return;
+            if (cannon.isDestroyed || !cannon.active) return;
             
             // ✅ VERIFICAR SI DEBE DISPARAR
             if (currentTime - cannon.lastFire > cannon.fireRate) {
@@ -972,7 +1044,7 @@ class Level3Scene extends Phaser.Scene {
     }
 
     isPlayerInCannonRange(cannon) {
-        const range = 500; // Rango de detección
+        const range = 150; // Rango de detección reducido - solo dispara cuando está muy cerca
         
         // Verificar jugador
         if (this.player && this.player.active) {
@@ -980,29 +1052,11 @@ class Level3Scene extends Phaser.Scene {
                 cannon.x, cannon.y, this.player.x, this.player.y
             );
             
-            // ✅ DEBUG: Verificar si está en el lado correcto
             const playerSide = this.player.x < cannon.x ? 'left' : 'right';
             
-            if (distance < range) {
-                console.log(`🎯 Jugador detectado: está al ${playerSide} del cañón que apunta hacia ${cannon.direction}`);
-                
-                // ✅ OPCIONAL: Solo disparar si el jugador está en la dirección correcta
-                // if (cannon.direction === playerSide) {
-                    return true;
-                // }
-            }
-        }
-        
-        // Verificar compañero
-        if (this.companion && this.companion.active) {
-            const distance = Phaser.Math.Distance.Between(
-                cannon.x, cannon.y, this.companion.x, this.companion.y
-            );
-            
-            const companionSide = this.companion.x < cannon.x ? 'left' : 'right';
-            
-            if (distance < range) {
-                console.log(`🎯 Compañero detectado: está al ${companionSide} del cañón que apunta hacia ${cannon.direction}`);
+            // Solo dispara si el jugador está muy cerca Y en la dirección correcta
+            if (distance < range && cannon.direction === playerSide) {
+                console.log(`🎯 Jugador detectado muy cerca: ${distance.toFixed(0)} unidades`);
                 return true;
             }
         }
@@ -1220,344 +1274,6 @@ fireCannon(cannon) {
         };
         
         this.scene.start('GameOverScene', gameData);
-    }
-
-    // ✅ CREAR ESQUELETO JEFE FINAL + ESQUELETOS ADICIONALES
-    createSkeletonBoss() {
-        // ✅ CREAR ANIMACIONES DEL ESQUELETO (si no existen)
-        if (!this.anims.exists('skeleton_walk_anim')) {
-            this.anims.create({
-                key: 'skeleton_walk_anim',
-                frames: this.anims.generateFrameNumbers('skeleton_walk', { 
-                    start: 1, 
-                    end: 10
-                }),
-                frameRate: 10,
-                repeat: -1
-            });
-        }
-
-        if (!this.anims.exists('skeleton_attack_anim')) {
-            this.anims.create({
-                key: 'skeleton_attack_anim',
-                frames: this.anims.generateFrameNumbers('skeleton_attack', {
-                    start: 1,
-                    end: 10
-                }),
-                frameRate: 15,
-                repeat: 0
-            });
-        }
-        
-        // ✅ CREAR MÚLTIPLES ESQUELETOS PARA MAYOR DIFICULTAD
-        const skeletonPositions = [
-            // Esqueletos menores distribuidos por el nivel
-            { x: 800, y: 500, type: 'minion', scale: 1.0 },
-            { x: 1400, y: 450, type: 'minion', scale: 1.0 },
-            { x: 2200, y: 480, type: 'minion', scale: 1.0 },
-            { x: 2600, y: 420, type: 'minion', scale: 1.0 },
-            
-            // JEFE FINAL al final del mapa
-            { x: this.levelWorldWidth - 200, y: 500, type: 'boss', scale: 1.8 }
-        ];
-        
-        skeletonPositions.forEach((pos, index) => {
-            const skeleton = this.enemies.create(pos.x, pos.y, 'skeleton_walk');
-            skeleton.setScale(pos.scale);
-            skeleton.setBounce(0.1);
-            skeleton.setCollideWorldBounds(true);
-            skeleton.setOrigin(0.5, 1);
-            skeleton.isAttacking = false;
-            skeleton.attackCooldown = 0;
-            skeleton.currentTarget = null;
-            
-            if (pos.type === 'boss') {
-                // ✅ PROPIEDADES DEL JEFE FINAL
-                skeleton.health = 250;
-                skeleton.maxHealth = 250;
-                skeleton.damage = 50;
-                skeleton.enemyType = 'skeleton_boss';
-                skeleton.attackRange = 120;
-                skeleton.setVelocityX(-30);
-                skeleton.isBoss = true;
-                
-                // ✅ TINTE DORADO PARA EL JEFE
-                skeleton.setTint(0xFFD700);
-                
-                // ✅ PATRULLAJE DEL JEFE
-                skeleton.patrolPoints = [
-                    { x: pos.x - 150, y: 500 },
-                    { x: pos.x + 100, y: 500 }
-                ];
-                skeleton.currentPoint = 0;
-                skeleton.direction = -1;
-                
-                this.skeletonBoss = skeleton; // Referencia al jefe
-                
-                // ✅ CREAR BARRA DE VIDA DEL JEFE
-                this.createBossHealthBar();
-                
-                console.log(`👑 JEFE ESQUELETO creado en (${pos.x}, ${pos.y})`);
-                
-            } else {
-                // ✅ PROPIEDADES DE ESQUELETOS MENORES
-                skeleton.health = 100;
-                skeleton.maxHealth = 100;
-                skeleton.damage = 35;
-                skeleton.enemyType = 'skeleton_minion';
-                skeleton.attackRange = 80;
-                skeleton.setVelocityX(50);
-                skeleton.isBoss = false;
-                
-                // ✅ TINTE GRIS PARA DIFERENCIAR
-                skeleton.setTint(0xCCCCCC);
-                
-                // ✅ PATRULLAJE LOCAL
-                skeleton.patrolPoints = [
-                    { x: pos.x - 100, y: pos.y },
-                    { x: pos.x + 100, y: pos.y }
-                ];
-                skeleton.currentPoint = 0;
-                skeleton.direction = 1;
-                
-                console.log(`💀 Esqueleto ${index + 1} creado en (${pos.x}, ${pos.y})`);
-            }
-            
-            skeleton.play('skeleton_walk_anim', true);
-        });
-        
-        // ✅ IA PARA TODOS LOS ESQUELETOS
-        this.skeletonAI = this.time.addEvent({
-            delay: 100,
-            callback: this.updateAllSkeletons,
-            callbackScope: this,
-            loop: true
-        });
-        
-        console.log(`✅ ${skeletonPositions.length} esqueletos creados (1 jefe + 4 menores)`);
-    }
-
-    // ✅ CREAR BARRA DE VIDA DEL JEFE
-    createBossHealthBar() {
-        const { width } = this.sys.game.config;
-        
-        this.bossHealthBarBg = this.add.rectangle(width/2, 60, 300, 20, 0x000000, 0.8);
-        this.bossHealthBarBg.setScrollFactor(0);
-        this.bossHealthBarBg.setDepth(1000);
-        this.bossHealthBarBg.setStrokeStyle(2, 0xFFD700);
-        
-        this.bossHealthBar = this.add.rectangle(width/2, 60, 300, 18, 0xFFD700);
-        this.bossHealthBar.setScrollFactor(0);
-        this.bossHealthBar.setDepth(1001);
-        
-        this.bossNameText = this.add.text(width/2, 35, '👑 REY ESQUELETO 👑', {
-            fontSize: '18px',
-            color: '#FFD700',
-            fontStyle: 'bold',
-            stroke: '#000000',
-            strokeThickness: 2
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(1002);
-        
-        this.bossHealthText = this.add.text(width/2, 80, '250/250', {
-            fontSize: '14px',
-            color: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(1002);
-    }
-
-    // ✅ ACTUALIZAR TODOS LOS ESQUELETOS
-    updateAllSkeletons() {
-        if (!this.enemies || this.isGamePaused) return;
-        
-        const currentTime = this.time.now;
-        
-        this.enemies.children.entries.forEach(skeleton => {
-            if (!skeleton.active || !skeleton.enemyType || 
-                (!skeleton.enemyType.includes('skeleton'))) return;
-            
-            // ✅ VERIFICAR SI EL JEFE MURIÓ
-            if (skeleton.isBoss && skeleton.health <= 0) {
-                this.defeatSkeletonBoss();
-                return;
-            }
-            
-            // ✅ BUSCAR OBJETIVO MÁS CERCANO
-            const target = this.findClosestTargetForSkeleton(skeleton);
-            
-            if (target) {
-                const distance = Phaser.Math.Distance.Between(
-                    skeleton.x, skeleton.y,
-                    target.x, target.y
-                );
-                
-                skeleton.setFlipX(target.x < skeleton.x);
-                
-                if (distance < skeleton.attackRange && currentTime > skeleton.attackCooldown) {
-                    this.skeletonAttack(skeleton, target);
-                } else if (distance < 250) {
-                    // Perseguir objetivo
-                    const direction = target.x < skeleton.x ? -1 : 1;
-                    const speed = skeleton.isBoss ? 80 : 60;
-                    skeleton.setVelocityX(direction * speed);
-                } else {
-                    // Patrullar
-                    this.skeletonPatrol(skeleton);
-                }
-            } else {
-                // Patrullar si no hay objetivo
-                this.skeletonPatrol(skeleton);
-            }
-            
-            // ✅ ACTUALIZAR BARRA DEL JEFE
-            if (skeleton.isBoss) {
-                this.updateBossHealthBar();
-            }
-        });
-    }
-
-    // ✅ ENCONTRAR OBJETIVO MÁS CERCANO
-    findClosestTargetForSkeleton(skeleton) {
-        let closestTarget = null;
-        let closestDistance = Infinity;
-        
-        // Verificar jugador
-        if (this.player && this.player.active) {
-            const distance = Phaser.Math.Distance.Between(
-                skeleton.x, skeleton.y,
-                this.player.x, this.player.y
-            );
-            if (distance < closestDistance) {
-                closestDistance = distance;
-                closestTarget = this.player;
-            }
-        }
-        
-        // Verificar compañero
-        if (this.companion && this.companion.active) {
-            const distance = Phaser.Math.Distance.Between(
-                skeleton.x, skeleton.y,
-                this.companion.x, this.companion.y
-            );
-            if (distance < closestDistance) {
-                closestDistance = distance;
-                closestTarget = this.companion;
-            }
-        }
-        
-        return closestTarget;
-    }
-
-    // ✅ ATAQUE DEL ESQUELETO
-    skeletonAttack(skeleton, target) {
-        skeleton.isAttacking = true;
-        skeleton.attackCooldown = this.time.now + (skeleton.isBoss ? 1000 : 1500);
-        
-        skeleton.play('skeleton_attack_anim', true).once('animationcomplete', () => {
-            if (skeleton.active) {
-                skeleton.isAttacking = false;
-                skeleton.play('skeleton_walk_anim', true);
-            }
-        });
-        
-        // Aplicar daño
-        if (target === this.player && this.enemyManager) {
-            this.enemyManager.hitEnemy(target, skeleton);
-        } else if (target === this.companion) {
-            this.hitCompanion(target, skeleton);
-        }
-        
-        // Shake para el jefe
-        if (skeleton.isBoss) {
-            this.cameras.main.shake(80, 0.015);
-        }
-    }
-
-    // ✅ PATRULLAJE DE ESQUELETOS
-    skeletonPatrol(skeleton) {
-        if (skeleton.isAttacking) return;
-        
-        const targetX = skeleton.patrolPoints[skeleton.currentPoint].x;
-        
-        if (Math.abs(skeleton.x - targetX) < 15) {
-            skeleton.currentPoint = (skeleton.currentPoint + 1) % skeleton.patrolPoints.length;
-            skeleton.direction *= -1;
-            skeleton.setFlipX(skeleton.direction < 0);
-        }
-        
-        const speed = skeleton.isBoss ? 50 : 40;
-        skeleton.setVelocityX(speed * skeleton.direction);
-        
-        if (!skeleton.anims.isPlaying) {
-            skeleton.play('skeleton_walk_anim', true);
-        }
-    }
-
-    // ✅ ACTUALIZAR BARRA DE VIDA DEL JEFE
-    updateBossHealthBar() {
-        if (!this.bossHealthBar || !this.skeletonBoss) return;
-        
-        const healthPercent = this.skeletonBoss.health / this.skeletonBoss.maxHealth;
-        const newWidth = 300 * healthPercent;
-        
-        this.bossHealthBar.width = newWidth;
-        
-        if (healthPercent <= 0) {
-            this.bossHealthBar.width = 0;
-            this.bossHealthText.setText('¡DERROTADO!');
-        } else {
-            this.bossHealthText.setText(`${this.skeletonBoss.health}/${this.skeletonBoss.maxHealth}`);
-        }
-    }
-
-    // ✅ FUNCIÓN PARA DERROTAR AL JEFE ESQUELETO
-    defeatSkeletonBoss() {
-        if (!this.skeletonBoss || !this.skeletonBoss.active) return;
-        
-        console.log("👑 Jefe Esqueleto derrotado");
-        
-        // ✅ ELIMINAR TODOS LOS ESQUELETOS
-        this.enemies.children.entries.forEach(skeleton => {
-            if (skeleton.enemyType && skeleton.enemyType.includes('skeleton')) {
-                skeleton.setActive(false).setVisible(false);
-            }
-        });
-        
-        // ✅ DETENER LA IA DE LOS ESQUELETOS
-        if (this.skeletonAI) {
-            this.skeletonAI.remove();
-            this.skeletonAI = null;
-        }
-        
-        // ✅ RECOMPENSAR AL JUGADOR
-        this.gameState.score += 1000;
-        this.uiManager.updateScore();
-        
-        // ✅ MENSAJE DE VICTORIA SOBRE EL JEFE
-        const { width, height } = this.sys.game.config;
-        const bossVictoryText = this.add.text(width/2, height/2, 
-            '¡Has derrotado al Rey Esqueleto!', 
-            {
-                fontSize: '28px',
-                color: '#FFD700',
-                fontStyle: 'bold',
-                stroke: '#000000',
-                strokeThickness: 4,
-                align: 'center'
-            }
-        ).setOrigin(0.5).setDepth(2000).setScrollFactor(0);
-
-        this.tweens.add({
-            targets: bossVictoryText,
-            alpha: 0,
-            duration: 3000,
-            delay: 1000,
-            onComplete: () => bossVictoryText.destroy()
-        });
-        
-        // ✅ REINICIAR NIVEL DESPUÉS DE UN TIEMPO
-        this.time.delayedCall(5000, () => {
-            this.scene.restart();
-        });
     }
 }
 

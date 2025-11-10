@@ -12,6 +12,9 @@ export default class MenuScene extends Phaser.Scene {
         // ✅ AGREGAR NUEVO FONDO
         this.load.image('menu-background', 'assets/image1.png');
         
+        // ✅ CAMBIAR AL NUEVO BOTÓN DE JUGAR
+        this.load.image('play-button', 'assets/jugar.png');
+        
         // ✅ SPRITES PARA PERSONAJES CORRIENDO
         this.load.spritesheet('ninja-idle', 'assets/player/Idle (32x32).png', { frameWidth: 32, frameHeight: 32 });
         this.load.spritesheet('ninja-run', 'assets/player/Run (32x32).png', { frameWidth: 32, frameHeight: 32 });
@@ -226,76 +229,107 @@ export default class MenuScene extends Phaser.Scene {
         });
     }
 
-    // 🟣 Botones con borde luminoso y reflejo
+    // 🟣 Botón circular de play estilo Angry Birds
     createButtons(width) {
-        const buttons = [
-            { y: 270, text: '🎮 INICIAR JUEGO', color: 0x9333ea, hover: 0xa855f7, action: 'start' }
-        ];
-
-        buttons.forEach(b =>
-            this.createGlowingButton(width / 2, b.y, b.text, b.color, b.hover, b.action)
-        );
+        this.createCircularPlayButton(width / 2, 280);
     }
 
-    createGlowingButton(x, y, text, color, hoverColor, action) {
-        const w = 350, h = 55;
+    createCircularPlayButton(x, y) {
         const container = this.add.container(x, y);
-        const base = this.add.graphics();
-
-        const drawButton = (col) => {
-            base.clear();
-            base.lineStyle(2, 0xffffff, 0.1);
-            base.fillStyle(col, 1);
-            base.fillRoundedRect(-w / 2, -h / 2, w, h, 14);
-            base.strokeRoundedRect(-w / 2, -h / 2, w, h, 14);
-        };
-        drawButton(color);
-
-        const textObj = this.add.text(0, 0, text, {
-            fontSize: '20px',
-            fontFamily: 'Arial Black',
-            color: '#fff'
-        }).setOrigin(0.5);
-
-        container.add([base, textObj]);
-        container.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains);
-
-        // Eventos
+        
+        // ✅ USAR LA NUEVA IMAGEN DE JUGAR (SÚPER PEQUEÑO)
+        let playButton;
+        if (this.textures.exists('play-button')) {
+            playButton = this.add.image(0, 0, 'play-button');
+            
+            // ✅ HACERLO SÚPER PEQUEÑO xd
+            playButton.setScale(0.25); // Reducido de 0.35 a 0.25
+            
+            // ✅ AGREGAR SOMBRA SUTIL PARA MEJOR APARIENCIA
+            const shadow = this.add.image(2, 2, 'play-button');
+            shadow.setScale(0.25); // También reducir la sombra
+            shadow.setTint(0x000000);
+            shadow.setAlpha(0.3);
+            
+            container.add([shadow, playButton]);
+        } else {
+            // ✅ FALLBACK TAMBIÉN SÚPER PEQUEÑO
+            const outerCircle = this.add.graphics();
+            outerCircle.fillStyle(0x4ade80, 1);
+            outerCircle.lineStyle(4, 0xffffff, 0.8);
+            outerCircle.fillCircle(0, 0, 28); // Reducido de 35 a 28
+            outerCircle.strokeCircle(0, 0, 28);
+            
+            const innerGlow = this.add.graphics();
+            innerGlow.fillStyle(0x6ee7b7, 0.6);
+            innerGlow.fillCircle(0, 0, 22); // Reducido de 28 a 22
+            
+            // Triángulo de play súper pequeño
+            const triangle = this.add.graphics();
+            triangle.fillStyle(0xffffff, 1);
+            triangle.fillTriangle(-8, -10, -8, 10, 12, 0); // Más pequeño aún
+            
+            container.add([outerCircle, innerGlow, triangle]);
+        }
+        
+        // ✅ ÁREA INTERACTIVA SÚPER PEQUEÑA
+        container.setInteractive(new Phaser.Geom.Circle(0, 0, 35), Phaser.Geom.Circle.Contains); // Reducido de 45 a 35
+        
+        // ✅ EFECTOS HOVER
         container.on('pointerover', () => {
-            drawButton(hoverColor);
             this.tweens.add({
                 targets: container,
-                scaleX: 1.06,
-                scaleY: 1.06,
-                duration: 150,
+                scaleX: 1.15,
+                scaleY: 1.15,
+                duration: 200,
                 ease: 'Back.easeOut'
             });
+            
+            if (this.textures.exists('play-button')) {
+                playButton.setTint(0xdddddd);
+            }
         });
+        
         container.on('pointerout', () => {
-            drawButton(color);
             this.tweens.add({
                 targets: container,
                 scaleX: 1,
                 scaleY: 1,
-                duration: 150
+                duration: 200,
+                ease: 'Back.easeOut'
             });
+            
+            if (this.textures.exists('play-button')) {
+                playButton.clearTint();
+            }
         });
+        
         container.on('pointerdown', () => {
             this.tweens.add({
                 targets: container,
-                scaleX: 0.95,
-                scaleY: 0.95,
+                scaleX: 0.85,
+                scaleY: 0.85,
                 duration: 100,
                 yoyo: true,
+                ease: 'Power2',
                 onComplete: () => {
-                    if (action === 'start') this.startGame();
-                    else if (action === 'story') this.showStory();
-                    else if (action === 'credits') this.showCredits();
-                    else if (action === 'levels') this.showLevelSelector();
-                    else if (action === 'exit') this.exitGame();
+                    this.startGame();
                 }
             });
         });
+        
+        // ✅ ANIMACIÓN DE PULSO MINIMALISTA
+        this.tweens.add({
+            targets: container,
+            scaleX: 1.02, // Reducido de 1.03 a 1.02
+            scaleY: 1.02,
+            duration: 2500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        console.log("✅ Botón de jugar SÚPER PEQUEÑITO creado xd");
     }
 
     createFooter(width, height) {
@@ -749,5 +783,104 @@ export default class MenuScene extends Phaser.Scene {
         });
         
         console.log("🏷️ Labels móviles creados para ninja, MOTOCLE y amigo (sin chocar)");
+    }
+
+    // ✅ NUEVO: Botón circular de play
+    createCircularPlayButton(x, y) {
+        const container = this.add.container(x, y);
+        
+        // ✅ USAR LA NUEVA IMAGEN DE JUGAR (SÚPER PEQUEÑO)
+        let playButton;
+        if (this.textures.exists('play-button')) {
+            playButton = this.add.image(0, 0, 'play-button');
+            
+            // ✅ HACERLO SÚPER PEQUEÑO xd
+            playButton.setScale(0.25); // Reducido de 0.35 a 0.25
+            
+            // ✅ AGREGAR SOMBRA SUTIL PARA MEJOR APARIENCIA
+            const shadow = this.add.image(2, 2, 'play-button');
+            shadow.setScale(0.25); // También reducir la sombra
+            shadow.setTint(0x000000);
+            shadow.setAlpha(0.3);
+            
+            container.add([shadow, playButton]);
+        } else {
+            // ✅ FALLBACK TAMBIÉN SÚPER PEQUEÑO
+            const outerCircle = this.add.graphics();
+            outerCircle.fillStyle(0x4ade80, 1);
+            outerCircle.lineStyle(4, 0xffffff, 0.8);
+            outerCircle.fillCircle(0, 0, 28); // Reducido de 35 a 28
+            outerCircle.strokeCircle(0, 0, 28);
+            
+            const innerGlow = this.add.graphics();
+            innerGlow.fillStyle(0x6ee7b7, 0.6);
+            innerGlow.fillCircle(0, 0, 22); // Reducido de 28 a 22
+            
+            // Triángulo de play súper pequeño
+            const triangle = this.add.graphics();
+            triangle.fillStyle(0xffffff, 1);
+            triangle.fillTriangle(-8, -10, -8, 10, 12, 0); // Más pequeño aún
+            
+            container.add([outerCircle, innerGlow, triangle]);
+        }
+        
+        // ✅ ÁREA INTERACTIVA SÚPER PEQUEÑA
+        container.setInteractive(new Phaser.Geom.Circle(0, 0, 35), Phaser.Geom.Circle.Contains); // Reducido de 45 a 35
+        
+        // ✅ EFECTOS HOVER
+        container.on('pointerover', () => {
+            this.tweens.add({
+                targets: container,
+                scaleX: 1.15,
+                scaleY: 1.15,
+                duration: 200,
+                ease: 'Back.easeOut'
+            });
+            
+            if (this.textures.exists('play-button')) {
+                playButton.setTint(0xdddddd);
+            }
+        });
+        
+        container.on('pointerout', () => {
+            this.tweens.add({
+                targets: container,
+                scaleX: 1,
+                scaleY: 1,
+                duration: 200,
+                ease: 'Back.easeOut'
+            });
+            
+            if (this.textures.exists('play-button')) {
+                playButton.clearTint();
+            }
+        });
+        
+        container.on('pointerdown', () => {
+            this.tweens.add({
+                targets: container,
+                scaleX: 0.85,
+                scaleY: 0.85,
+                duration: 100,
+                yoyo: true,
+                ease: 'Power2',
+                onComplete: () => {
+                    this.startGame();
+                }
+            });
+        });
+        
+        // ✅ ANIMACIÓN DE PULSO MINIMALISTA
+        this.tweens.add({
+            targets: container,
+            scaleX: 1.02, // Reducido de 1.03 a 1.02
+            scaleY: 1.02,
+            duration: 2500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        console.log("✅ Botón de jugar SÚPER PEQUEÑITO creado xd");
     }
 }
